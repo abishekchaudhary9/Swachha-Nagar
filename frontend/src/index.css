@@ -1,0 +1,366 @@
+/* ─── Google Fonts: Inter ───────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* ─── Tailwind directives ────────────────────────────────────────────────── */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── CSS Custom Properties mirroring DESIGN.md tokens ──────────────────── */
+:root {
+  /* Colors */
+  --color-primary:            #005440;
+  --color-on-primary:         #ffffff;
+  --color-primary-container:  #0f6e56;
+  --color-secondary:          #5049c8;
+  --color-on-secondary:       #ffffff;
+  --color-tertiary:           #832c0e;
+  --color-surface:            #f9f9f9;
+  --color-on-surface:         #1a1c1c;
+  --color-on-surface-variant: #3f4944;
+  --color-outline:            #6f7a74;
+  --color-outline-variant:    #bec9c3;
+  --color-background:         #f9f9f9;
+  --color-error:              #ba1a1a;
+
+  /* Spacing (4px base) */
+  --space-xs:  4px;
+  --space-sm:  8px;
+  --space-md:  16px;
+  --space-lg:  24px;
+  --space-xl:  32px;
+  --container-margin: 20px;
+
+  /* Radii */
+  --radius-sm:  0.25rem;
+  --radius-md:  0.75rem;
+  --radius-lg:  1rem;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-card-citizen: 0 2px 8px 0 rgba(0,84,64,0.12);
+  --shadow-card-admin:   0 2px 8px 0 rgba(80,73,200,0.12);
+  --shadow-modal:        0 4px 16px 0 rgba(0,0,0,0.15);
+}
+
+/* ─── Dark Mode Overrides — Vibrant ──────────────────────────────── */
+.dark {
+  --color-surface:            #0f1729;
+  --color-on-surface:         #e8edf5;
+  --color-on-surface-variant: #a0b4cc;
+  --color-background:         #080e1e;
+  --color-outline:            #5a7599;
+  --color-outline-variant:    #1e3050;
+  --color-primary:            #34d399;
+  --color-secondary:          #818cf8;
+  --color-tertiary:           #fb923c;
+  --color-error:              #f87171;
+  color-scheme: dark;
+}
+
+.dark body {
+  background-color: #080e1e !important;
+  color: #e8edf5 !important;
+}
+
+/* ─ Page-level backgrounds ─ */
+.dark .bg-slate-50,
+.dark .bg-surface-container-low,
+.dark .bg-surface {
+  background-color: #080e1e !important;
+}
+
+/* ─ Card / panel backgrounds ─ */
+.dark .bg-white,
+.dark .card-admin,
+.dark .card-citizen {
+  background-color: #0f1729 !important;
+  border-color: #1a2d4d !important;
+  color: #e8edf5 !important;
+}
+
+/* ─ Surface container scale ─ */
+.dark .bg-surface-container-lowest {
+  background-color: #080e1e !important;
+}
+.dark .bg-surface-container {
+  background-color: #131f38 !important;
+}
+.dark .bg-surface-container-high {
+  background-color: #182744 !important;
+}
+.dark .bg-surface-container-highest {
+  background-color: #1e3050 !important;
+}
+
+/* ─ Primary text (headings, strong labels) ─ */
+.dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6,
+.dark .text-slate-800,
+.dark .text-slate-900,
+.dark .text-slate-700,
+.dark .text-on-surface {
+  color: #eef2f9 !important;
+}
+
+/* ─ Secondary / muted text ─ */
+.dark .text-slate-500,
+.dark .text-slate-600,
+.dark .text-on-surface-variant {
+  color: #8da4c2 !important;
+}
+
+/* ─ Outline / very muted text ─ */
+.dark .text-outline {
+  color: #5a7599 !important;
+}
+
+/* ─ Vibrant accent colors in dark mode ─ */
+.dark .text-primary   { color: #34d399 !important; }
+.dark .text-secondary { color: #a5b4fc !important; }
+.dark .text-tertiary  { color: #fdba74 !important; }
+.dark .text-error     { color: #fca5a5 !important; }
+.dark .bg-primary     { background-color: #059669 !important; }
+.dark .bg-secondary   { background-color: #6366f1 !important; }
+.dark .bg-tertiary    { background-color: #ea580c !important; }
+.dark .bg-error       { background-color: #dc2626 !important; }
+
+/* ─ Table headers ─ */
+.dark th {
+  background-color: #131f38 !important;
+  color: #a0b4cc !important;
+}
+
+/* ─ Table row hover ─ */
+.dark tr:hover {
+  background-color: rgba(24, 39, 68, 0.7) !important;
+}
+
+/* ─ Borders — subtle blue tint ─ */
+.dark .border-slate-200,
+.dark .border-slate-300,
+.dark .border-slate-100,
+.dark .border-outline-variant {
+  border-color: #1a2d4d !important;
+}
+
+/* ─ Form inputs ─ */
+.dark input,
+.dark select,
+.dark textarea {
+  background-color: #131f38 !important;
+  color: #e8edf5 !important;
+  border-color: #1e3050 !important;
+}
+
+.dark input:focus,
+.dark select:focus,
+.dark textarea:focus {
+  border-color: #818cf8 !important;
+  box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.15) !important;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #5a7599 !important;
+}
+
+/* ─ Header bar ─ */
+.dark .bg-secondary {
+  background-color: #312e81 !important;
+}
+
+/* ─ Status badges — brighter in dark mode ─ */
+.dark .badge-submitted    { background-color: rgba(90, 117, 153, 0.25) !important; color: #a0b4cc !important; }
+.dark .badge-acknowledged { background-color: rgba(129, 140, 248, 0.2) !important; color: #a5b4fc !important; }
+.dark .badge-in-progress  { background-color: rgba(251, 146, 60, 0.2) !important; color: #fdba74 !important; }
+.dark .badge-resolved     { background-color: rgba(52, 211, 153, 0.2) !important; color: #6ee7b7 !important; }
+.dark .badge-closed       { background-color: rgba(90, 117, 153, 0.15) !important; color: #5a7599 !important; }
+
+/* ─ General paragraph/span/label inside dark cards ─ */
+.dark .card-admin p,
+.dark .card-admin span,
+.dark .card-admin label,
+.dark .card-admin td {
+  color: inherit;
+}
+
+
+
+
+/* ─── Base reset / global defaults ──────────────────────────────────────── */
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+    background-color: var(--color-background);
+    color: var(--color-on-surface);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100dvh;
+  }
+
+  /* All interactive elements meet the 48px tap target rule */
+  button, [role="button"], input, select, textarea, a {
+    min-height: 48px;
+  }
+
+  input, select, textarea {
+    font-family: inherit;
+  }
+}
+
+/* ─── Component layer utilities ──────────────────────────────────────────── */
+@layer components {
+  /* ── Buttons ── */
+  .btn-citizen {
+    @apply inline-flex items-center justify-center gap-2
+           min-h-tap px-md font-semibold text-on-primary
+           bg-primary rounded-lg transition-all duration-200
+           hover:brightness-110 active:scale-95 focus-visible:outline-none
+           focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2;
+  }
+
+  .btn-admin {
+    @apply inline-flex items-center justify-center gap-2
+           min-h-tap px-md font-semibold text-on-secondary
+           bg-secondary rounded-lg transition-all duration-200
+           hover:brightness-110 active:scale-95 focus-visible:outline-none
+           focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2;
+  }
+
+  .btn-ghost-citizen {
+    @apply inline-flex items-center justify-center gap-2
+           min-h-tap px-md font-semibold text-primary
+           border border-primary rounded-lg bg-transparent
+           transition-all duration-200 hover:bg-primary/10 active:scale-95;
+  }
+
+  .btn-ghost-admin {
+    @apply inline-flex items-center justify-center gap-2
+           min-h-tap px-md font-semibold text-secondary
+           border border-secondary rounded-lg bg-transparent
+           transition-all duration-200 hover:bg-secondary/10 active:scale-95;
+  }
+
+  /* ── Form Inputs ── */
+  .input-field {
+    @apply w-full min-h-tap px-md py-sm rounded-md border border-outline-variant
+           bg-surface-container-lowest text-on-surface text-body-md
+           transition-all duration-150
+           placeholder:text-outline
+           focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20;
+  }
+
+  .input-label {
+    @apply block text-label-md text-on-surface-variant mb-xs;
+  }
+
+  /* ── Cards ── */
+  .card-citizen {
+    @apply bg-white rounded-md shadow-card-citizen border border-outline-variant/30 p-md;
+  }
+
+  .card-admin {
+    @apply bg-white rounded-md shadow-card-admin border border-outline-variant/30 p-md;
+  }
+
+  /* ── Status Badges ── */
+  .badge-submitted    { @apply inline-flex items-center px-sm py-xs rounded-full text-label-sm bg-outline-variant/30 text-on-surface-variant; }
+  .badge-acknowledged { @apply inline-flex items-center px-sm py-xs rounded-full text-label-sm bg-secondary/15 text-secondary; }
+  .badge-in-progress  { @apply inline-flex items-center px-sm py-xs rounded-full text-label-sm bg-tertiary/15 text-tertiary; }
+  .badge-resolved     { @apply inline-flex items-center px-sm py-xs rounded-full text-label-sm bg-primary/15 text-primary; }
+  .badge-closed       { @apply inline-flex items-center px-sm py-xs rounded-full text-label-sm bg-surface-container-highest text-outline; }
+}
+
+/* ─── Animations ─────────────────────────────────────────────────────────── */
+@keyframes animate-in-keyframe {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-in {
+  animation: animate-in-keyframe 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up {
+  animation: fade-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.animate-fade-in {
+  animation: fade-in 0.3s ease both;
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(32px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.animate-slide-right {
+  animation: slide-in-right 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.animate-scale-in {
+  animation: scale-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ── Shimmer skeleton loading ── */
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, rgba(148,163,184,0.15) 25%, rgba(148,163,184,0.3) 50%, rgba(148,163,184,0.15) 75%);
+  background-size: 800px 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 0.5rem;
+}
+
+/* ── Pulse glow for status badges ── */
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 currentColor; opacity: 1; }
+  50%       { box-shadow: 0 0 0 4px transparent; opacity: 0.85; }
+}
+.badge-in-progress {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* ── Stagger delay utilities ── */
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.10s; }
+.stagger-3 { animation-delay: 0.15s; }
+.stagger-4 { animation-delay: 0.20s; }
+.stagger-5 { animation-delay: 0.25s; }
+
+/* ── Smooth card hover lift ── */
+.card-citizen, .card-admin {
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.card-citizen:hover, .card-admin:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 24px 0 rgba(0,0,0,0.10);
+}
+
+/* ── Button base polish ── */
+button, a[class*="btn"] {
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease, opacity 0.15s ease;
+}
+button:active {
+  transform: scale(0.96) !important;
+}
