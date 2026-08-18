@@ -20,7 +20,7 @@ export default function StaffHeader({ user }) {
   };
 
   return (
-    <header className="fixed top-0 w-full md:w-[calc(100%-16rem)] z-50 h-16 flex items-center justify-between px-margin-mobile md:px-margin-desktop bg-white/70 dark:bg-inverse-surface/70 backdrop-blur-xl border-b border-outline-variant/30 shadow-sm overflow-hidden">
+    <header className="fixed top-0 left-0 w-full z-50 h-16 flex items-center justify-between px-margin-mobile md:px-margin-desktop bg-white/70 dark:bg-inverse-surface/70 backdrop-blur-xl border-b border-outline-variant/30 shadow-sm overflow-hidden">
       <div className="flex items-center gap-3 min-w-0">
         <Link to="/staff/dashboard" className="md:hidden shrink-0">
           <img src={LOGO_URL} alt="Swachchha Nagar" className="h-8 w-auto object-contain" />

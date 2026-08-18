@@ -27,7 +27,7 @@ export default function StaffSidebar({ user }) {
   };
 
   return (
-    <aside className="hidden md:flex flex-col h-screen py-stack-lg px-4 gap-stack-md bg-surface dark:bg-inverse-surface border-r border-outline-variant/20 fixed left-0 w-64 z-40">
+    <aside className="hidden md:flex flex-col h-[calc(100vh-4rem)] py-4 px-4 gap-stack-md bg-surface dark:bg-inverse-surface border-r border-outline-variant/20 fixed left-0 top-16 w-64 z-40">
       <div className="px-2 mb-4">
         <div className="flex items-center gap-3">
           <img src={LOGO_URL} alt="Swachchha Nagar Logo" className="w-10 h-10 rounded-lg object-cover" />
