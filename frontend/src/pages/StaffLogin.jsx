@@ -1,14 +1,16 @@
-// Page: Staff Login
-// Desktop-first JWT login for municipal staff
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { login } from '../services/api';
+
+const LOGO_URL = "https://lh3.googleusercontent.com/aida/AP1WRLvqEeSNx1XairIMzMTuD1Ix3vDKfZJs7-YfgEEPNl2vV2qBzNwK_90H6awnWo0iV_bzKZrzsBPq3Tv4gEr0rWvA3sIHns9dGPYnSzCpCQlzKmbZv0Fy8F9lkUnrfuvbR34Z-KzQBLco3clLLW46ds-c6I34B9njMqJQXNIcT7clHLgKM_5MjunTbA3Cq3_QwpVPnrq69gqyWpvx5LHurPYqkXSlCHozCGCkNqYfsUhZWFOY0h66yfgxdUg";
 
 export default function StaffLogin() {
   const navigate = useNavigate();
   const [email,        setEmail]        = useState('');
   const [password,     setPassword]     = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [remember,     setRemember]     = useState(false);
   const [error,        setError]        = useState('');
   const [loading,      setLoading]      = useState(false);
 
@@ -29,81 +31,165 @@ export default function StaffLogin() {
   };
 
   return (
-    <div className="min-h-screen bg-surface-container-low flex items-center justify-center px-md">
-      <div className="w-full max-w-sm">
-        {/* Brand header */}
-        <div className="text-center mb-xl">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-secondary mb-md">
-            <svg className="w-7 h-7 text-on-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-            </svg>
+    <motion.div
+      initial={{ opacity: 0, scale: 0.98 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.98 }}
+      transition={{ duration: 0.35, ease: 'easeInOut' }}
+      className="min-h-screen w-screen overflow-y-auto flex items-center justify-center p-stack-sm text-on-surface bg-surface-container-low relative"
+    >
+      {/* Background Pattern */}
+      <div className="fixed inset-0 pointer-events-none opacity-[0.03] overflow-hidden z-0">
+        <svg height="100%" width="100%" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <pattern height="40" id="grid" patternUnits="userSpaceOnUse" width="40">
+              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="currentColor" strokeWidth="1"></path>
+            </pattern>
+          </defs>
+          <rect fill="url(#grid)" height="100%" width="100%"></rect>
+        </svg>
+      </div>
+
+      {/* Login Container */}
+      <main className="relative z-10 w-full max-w-[400px] my-auto">
+        {/* Top Branding / Logo */}
+        <div className="flex flex-col items-center mb-stack-md">
+          <div className="w-14 h-14 mb-stack-sm overflow-hidden rounded-xl bg-white shadow-sm flex items-center justify-center p-stack-sm border border-outline-variant/30">
+            <img alt="Swachchha Nagar Logo" className="w-full h-full object-contain" src={LOGO_URL} />
           </div>
-          <h1 className="text-headline-md text-on-surface">Staff Portal</h1>
-          <p className="text-label-md text-on-surface-variant mt-xs">Swachha Nagar — Municipal Dashboard</p>
+          <h1 className="font-headline-md text-xl text-primary tracking-tight font-bold">Swachchha Nagar</h1>
+          <p className="font-label-caps text-label-caps text-on-surface-variant">Municipal Management Portal</p>
         </div>
 
-        {/* Login card */}
-        <div className="card-admin">
+        {/* Login Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.1, ease: 'easeOut' }}
+          className="bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-stack-lg shadow-lg"
+        >
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3, delay: 0.15 }}
+            className="mb-stack-md"
+          >
+            <h2 className="font-headline-md text-lg text-on-surface font-bold">Staff Log In</h2>
+            <p className="font-body-md text-sm text-on-surface-variant">Enter your credentials to access the portal.</p>
+          </motion.div>
+
           {error && (
-            <div className="mb-md p-sm rounded-md bg-error-container text-on-error-container text-label-md">
+            <motion.div
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="mb-stack-sm p-stack-sm rounded-lg bg-error-container text-on-error-container text-xs font-semibold"
+            >
               {error}
-            </div>
+            </motion.div>
           )}
-          <form onSubmit={handleSubmit} className="flex flex-col gap-md">
-            <div>
-              <label htmlFor="email" className="input-label">Email Address</label>
-              <input
-                id="email" type="email" autoComplete="email" required
-                value={email} onChange={e => setEmail(e.target.value)}
-                className="input-field"
-                placeholder="admin@swachhanagar.com"
-              />
-            </div>
-            <div>
-              <label htmlFor="password" className="input-label">Password</label>
+
+          <form onSubmit={handleSubmit} className="space-y-stack-md">
+            {/* Email Field */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.2 }}
+              className="space-y-stack-sm"
+            >
+              <label className="font-label-caps text-label-caps text-on-surface-variant block font-semibold" htmlFor="email">Email Address</label>
               <div className="relative">
+                <span className="material-symbols-outlined absolute left-stack-md top-1/2 -translate-y-1/2 text-outline text-[20px]">mail</span>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  required
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  className="w-full h-[42px] pl-[44px] pr-stack-md bg-white border border-outline-variant rounded-lg font-body-md text-sm transition-all outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  placeholder="staff@nagar.gov.in"
+                />
+              </div>
+            </motion.div>
+
+            {/* Password Field */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.25 }}
+              className="space-y-stack-sm"
+            >
+              <div className="flex justify-between items-center">
+                <label className="font-label-caps text-label-caps text-on-surface-variant block font-semibold" htmlFor="password">Password</label>
+                <a className="font-label-caps text-label-caps text-secondary hover:underline transition-all active:scale-95" href="#">Forgot?</a>
+              </div>
+              <div className="relative">
+                <span className="material-symbols-outlined absolute left-stack-md top-1/2 -translate-y-1/2 text-outline text-[20px]">lock</span>
                 <input
                   id="password"
+                  name="password"
                   type={showPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
                   required
                   value={password}
                   onChange={e => setPassword(e.target.value)}
-                  className="input-field pr-10"
+                  className="w-full h-[42px] pl-[44px] pr-[44px] bg-white border border-outline-variant rounded-lg font-body-md text-sm transition-all outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                   placeholder="••••••••"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface focus:outline-none"
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute right-stack-md top-1/2 -translate-y-1/2 text-outline hover:text-on-surface-variant transition-colors active:scale-90"
                 >
-                  {showPassword ? (
-                    /* Eye-off icon */
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858-5.908a10.04 10.04 0 013.122-.463c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m-4.692-4.692a3 3 0 11-4.243-4.243" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l18 18" />
-                    </svg>
-                  ) : (
-                    /* Eye icon */
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                  )}
+                  <span className="material-symbols-outlined text-[20px]">{showPassword ? 'visibility_off' : 'visibility'}</span>
                 </button>
               </div>
-            </div>
-            <button type="submit" disabled={loading} className="btn-admin w-full mt-sm">
-              {loading ? 'Signing in…' : 'Sign In'}
-            </button>
-          </form>
-        </div>
+            </motion.div>
 
-        <p className="text-center text-label-sm text-outline mt-lg">
-          Citizen? <a href="/" className="text-primary hover:underline">Go to citizen portal →</a>
-        </p>
-      </div>
-    </div>
+            {/* Remember Me */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.3 }}
+              className="flex items-center gap-stack-sm"
+            >
+              <input
+                id="remember"
+                type="checkbox"
+                checked={remember}
+                onChange={e => setRemember(e.target.checked)}
+                className="w-4 h-4 rounded border-outline-variant text-secondary focus:ring-secondary-container"
+              />
+              <label className="font-body-md text-xs text-on-surface-variant cursor-pointer" htmlFor="remember">Remember this device</label>
+            </motion.div>
+
+            {/* Action Button */}
+            <motion.button
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.97 }}
+              type="submit"
+              disabled={loading}
+              className="w-full h-[48px] bg-secondary hover:bg-secondary-container text-on-secondary font-button text-button rounded-xl transition-all duration-200 shadow-md flex items-center justify-center gap-stack-sm font-bold disabled:opacity-50"
+            >
+              <span>{loading ? 'Authenticating...' : 'Log In'}</span>
+              <span className="material-symbols-outlined text-[20px]">login</span>
+            </motion.button>
+          </form>
+
+          <div className="mt-stack-md pt-stack-md border-t border-outline-variant/30 text-center">
+            <p className="font-body-md text-xs text-on-surface-variant">
+              Citizen Portal?{' '}
+              <Link to="/" className="text-primary font-semibold hover:underline">
+                Go to Citizen Home
+              </Link>
+            </p>
+          </div>
+        </motion.div>
+
+        {/* Footer Info */}
+        <footer className="mt-stack-md text-center space-y-stack-sm">
+          <p className="font-label-caps text-[11px] text-outline-variant">© 2026 Swachchha Nagar Municipal Corporation</p>
+        </footer>
+      </main>
+    </motion.div>
   );
 }

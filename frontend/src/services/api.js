@@ -92,4 +92,20 @@ export const disputeReport = (trackingCode, reason) =>
 export const getAnalytics = () =>
   api.get('/api/analytics');
 
+/** Staff — per-ward performance breakdown. */
+export const getWardAnalytics = () =>
+  api.get('/api/analytics/wards');
+
+/** Staff — hotspot clusters (density, forecast, resolution rate). */
+export const getHotspots = () =>
+  api.get('/api/analytics/hotspots');
+
+/** Staff — fleet/team units (derived from field staff + assignments). */
+export const getFleet = () =>
+  api.get('/api/fleet');
+
+/** Public — landing page stats (no auth). */
+export const getPublicStats = () =>
+  api.get('/api/public/stats');
+
 export default api;

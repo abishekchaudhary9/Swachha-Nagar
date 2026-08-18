@@ -1,48 +1,55 @@
-// Page: Staff Dashboard
-// Dynamic role-tailored interface (Admin vs Ward Officer vs Field Worker)
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { listReports } from '../services/api';
-import { ThemeToggle } from '../context/ThemeContext';
+import { MapContainer, TileLayer, CircleMarker, Tooltip } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import { listReports, updateReportStatus } from '../services/api';
+import StaffSidebar from '../components/StaffSidebar';
+import StaffHeader from '../components/StaffHeader';
+import { StatusChip, relativeTime } from '../components/StatusChip';
 
-// Animation variants
-const fadeUp   = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 260, damping: 22 } } };
-const container = { hidden: {}, show: { transition: { staggerChildren: 0.04 } } };
-const rowVariant = { hidden: { opacity: 0, x: -10 }, show: { opacity: 1, x: 0, transition: { type: 'spring', stiffness: 300, damping: 28 } } };
-
-const STATUSES   = ['submitted','acknowledged','in_progress','resolved','closed'];
-const CATEGORIES = ['organic','plastic','e_waste','construction','other'];
-
-const STATUS_BADGE = {
-  submitted:    'badge-submitted',
-  acknowledged: 'badge-acknowledged',
-  in_progress:  'badge-in-progress',
-  resolved:     'badge-resolved',
-  closed:       'badge-closed',
+const MAP_STYLE = {
+  submitted:    { color: '#717975', fillColor: '#717975' },
+  acknowledged: { color: '#3a675a', fillColor: '#3a675a' },
+  in_progress:  { color: '#6adab4', fillColor: '#6adab4' },
+  resolved:     { color: '#0b3d32', fillColor: '#0b3d32' },
+  closed:       { color: '#c0c8c4', fillColor: '#c0c8c4' },
 };
-const STATUS_LABEL = {
-  submitted:'Submitted', acknowledged:'Acknowledged',
-  in_progress:'In Progress', resolved:'Resolved', closed:'Closed',
+
+const LEGEND = [
+  { color: '#717975', label: 'Submitted' },
+  { color: '#3a675a', label: 'Acknowledged' },
+  { color: '#6adab4', label: 'In Progress' },
+  { color: '#0b3d32', label: 'Resolved' },
+  { color: '#c0c8c4', label: 'Closed' },
+];
+
+const staggerItem = {
+  hidden: { opacity: 0, y: 12 },
+  show: i => ({
+    opacity: 1, y: 0,
+    transition: { duration: 0.35, delay: i * 0.05, ease: [0.25, 0.46, 0.45, 0.94] },
+  }),
 };
 
 export default function StaffDashboard() {
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('sn_user') || 'null');
 
-  const [reports,  setReports]  = useState([]);
-  const [total,    setTotal]    = useState(0);
-  const [loading,  setLoading]  = useState(false);
-  const [error,    setError]    = useState('');
-  const [filters,  setFilters]  = useState({
-    status: '', category: '', ward: '', date_from: '', date_to: '',
-  });
-  const [page, setPage] = useState(1);
+  const [reports,      setReports]      = useState([]);
+  const [total,        setTotal]        = useState(0);
+  const [loading,      setLoading]      = useState(false);
+  const [error,        setError]        = useState('');
+  const [activeFilter, setActiveFilter] = useState('ALL');
+  const [searchQuery,  setSearchQuery]  = useState('');
+  const [selectedReportId, setSelectedReportId] = useState(null);
+  const [toastMessage, setToastMessage] = useState(null);
 
   const fetchReports = useCallback(async () => {
     setLoading(true); setError('');
     try {
-      const res = await listReports({ ...filters, page, limit: 20 });
+      const statusParam = activeFilter === 'ALL' ? '' : activeFilter.toLowerCase();
+      const res = await listReports({ status: statusParam, limit: 100 });
       setReports(res.data.reports);
       setTotal(res.data.total);
     } catch (err) {
@@ -55,16 +62,14 @@ export default function StaffDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [filters, page, navigate]);
+  }, [activeFilter, navigate]);
 
   useEffect(() => { fetchReports(); }, [fetchReports]);
 
-  // ── Real-time WebSocket connection ─────────────────────────────────────────
   useEffect(() => {
-    // If backend is on standard HTTP/WS, connect via ws://
-    const wsUrl = `ws://${window.location.hostname}:5000`;
+    const wsProto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const wsUrl = `${wsProto}://${window.location.hostname}${window.location.port ? `:${window.location.port}` : ':5000'}`;
     let socket;
-
     try {
       socket = new WebSocket(wsUrl);
       socket.onmessage = (event) => {
@@ -72,252 +77,313 @@ export default function StaffDashboard() {
           const data = JSON.parse(event.data);
           if (['REPORT_SUBMITTED', 'REPORT_STATUS_UPDATED', 'REPORT_ASSIGNED'].includes(data.type)) {
             fetchReports();
+            if (data.type === 'REPORT_SUBMITTED') {
+              setToastMessage(`New Report #${data.report?.tracking_code || 'SN-NEW'}`);
+              setTimeout(() => setToastMessage(null), 5000);
+            }
           }
-        } catch {
-          // ignore non-json
-        }
+        } catch {}
       };
     } catch (e) {
-      console.error('WebSocket connection failed:', e);
+      console.error('WebSocket failed:', e);
     }
-
-    return () => {
-      if (socket) socket.close();
-    };
+    return () => { if (socket) socket.close(); };
   }, [fetchReports]);
 
-  const handleFilter = e => {
-    setFilters(f => ({ ...f, [e.target.name]: e.target.value }));
-    setPage(1);
+  const handleStatusChange = async (reportId, newStatus, e) => {
+    e.stopPropagation();
+    try {
+      await updateReportStatus(reportId, newStatus, 'Status updated via dashboard');
+      fetchReports();
+    } catch {
+      alert('Failed to update status');
+    }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('sn_token');
-    localStorage.removeItem('sn_user');
-    navigate('/staff/login');
+  const filteredReports = reports.filter(r => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return r.tracking_code.toLowerCase().includes(q) ||
+      (r.description && r.description.toLowerCase().includes(q)) ||
+      (r.ward && r.ward.toLowerCase().includes(q));
+  });
+
+  const mapReports = filteredReports.filter(r => r.latitude && r.longitude);
+  const stats = {
+    total: reports.length,
+    active: reports.filter(r => !['resolved', 'closed'].includes(r.status)).length,
+    resolved: reports.filter(r => r.status === 'resolved').length,
+    pending: reports.filter(r => r.status === 'submitted').length,
   };
-
-  const role = user?.role || 'sanitation_worker';
-
-  // Role Header Metadata
-  const roleTitle = {
-    admin: 'City Command & Operations Dashboard',
-    field_officer: `Ward Control Center ${user?.ward ? `(${user.ward})` : ''}`,
-    sanitation_worker: 'Field Cleanup Tasks',
-  }[role] ?? 'Dashboard';
-
-  const roleSubtitle = {
-    admin: 'City-wide governance, staff management, and system analytics',
-    field_officer: `Managing & delegating civic issues for ${user?.ward || 'your ward'}`,
-    sanitation_worker: 'Your assigned cleanup tasks and location work orders',
-  }[role] ?? '';
-
-  // Skeleton loading rows
-  const SkeletonRows = () => (
-    <>
-      {[...Array(6)].map((_, i) => (
-        <tr key={i} className="border-b border-outline-variant/30">
-          <td className="py-sm px-md"><div className="skeleton h-4 w-16" style={{ animationDelay: `${i * 0.05}s` }} /></td>
-          <td className="py-sm px-md"><div className="skeleton h-4 w-20" style={{ animationDelay: `${i * 0.05}s` }} /></td>
-          <td className="py-sm px-md hidden sm:table-cell"><div className="skeleton h-4 w-12" style={{ animationDelay: `${i * 0.05}s` }} /></td>
-          <td className="py-sm px-md"><div className="skeleton h-4 w-24" style={{ animationDelay: `${i * 0.05}s` }} /></td>
-          <td className="py-sm px-md hidden md:table-cell"><div className="skeleton h-4 w-28" style={{ animationDelay: `${i * 0.05}s` }} /></td>
-          <td className="py-sm px-md hidden lg:table-cell"><div className="skeleton h-4 w-20" style={{ animationDelay: `${i * 0.05}s` }} /></td>
-          <td className="py-sm px-md text-right"><div className="skeleton h-4 w-16 ml-auto" style={{ animationDelay: `${i * 0.05}s` }} /></td>
-        </tr>
-      ))}
-    </>
-  );
 
   return (
-    <motion.div
-      className="min-h-screen bg-surface-container-low"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.25 }}
-    >
-      {/* ── Top Nav ───────────────────────────────────────────────────────── */}
-      <motion.header
-        className="bg-secondary text-on-secondary px-md md:px-xl py-md flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-card-admin"
-        initial={{ y: -60, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ type: 'spring', stiffness: 280, damping: 25 }}
-      >
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-headline-md font-semibold">{roleTitle}</h1>
-            <span className="text-xs font-bold uppercase tracking-wider bg-white/20 text-white px-2.5 py-0.5 rounded-full border border-white/20">
-              {role === 'admin' ? 'System Admin' : role === 'field_officer' ? 'Ward Officer' : 'Field Worker'}
-            </span>
-          </div>
-          <p className="text-label-md opacity-80 mt-0.5">{user?.name} · {roleSubtitle}</p>
-        </div>
+    <div className="min-h-screen bg-background text-on-surface font-body-md">
+      <StaffSidebar user={user} />
+      <StaffHeader user={user} />
 
-        <div className="flex items-center gap-3 flex-wrap">
-          <ThemeToggle />
-          
-          {/* Admin Exclusive Button */}
-          {role === 'admin' && (
-            <Link 
-              to="/staff/users" 
-              className="inline-flex items-center gap-2 bg-emerald-600/90 hover:bg-emerald-500 text-white text-xs font-semibold px-4 py-2.5 rounded-xl border border-emerald-400/30 transition-all shadow-sm active:scale-95 hover:shadow-emerald-500/20"
-            >
-              <svg className="w-4 h-4 text-emerald-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-              </svg>
-              <span>Manage Staff Users</span>
-            </Link>
-          )}
-
-          {/* Admin & Officer Analytics Link */}
-          {(role === 'admin' || role === 'field_officer') && (
-            <Link 
-              to="/staff/analytics" 
-              className="inline-flex items-center gap-2 bg-indigo-600/90 hover:bg-indigo-500 text-white text-xs font-semibold px-4 py-2.5 rounded-xl border border-indigo-400/30 transition-all shadow-sm active:scale-95 hover:shadow-indigo-500/20"
-            >
-              <svg className="w-4 h-4 text-indigo-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 002 2v14a2 2 0 002 2h2a2 2 0 002-2z" />
-              </svg>
-              <span>Analytics</span>
-            </Link>
-          )}
-
-          <button 
-            onClick={handleLogout} 
-            className="inline-flex items-center gap-1.5 bg-rose-600/90 hover:bg-rose-500 text-white text-xs font-semibold px-4 py-2.5 rounded-xl border border-rose-400/30 transition-all shadow-sm active:scale-95"
+      {/* Toast */}
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, x: 40, scale: 0.95 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, x: 40, scale: 0.95 }}
+            className="fixed top-20 right-4 z-[100] bg-surface-container-lowest text-on-surface px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 border border-primary-fixed-dim/40"
           >
-            <svg className="w-4 h-4 text-rose-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
-            <span>Logout</span>
-          </button>
-        </div>
-      </motion.header>
+            <span className="w-2 h-2 rounded-full bg-tertiary-fixed-dim animate-pulse" />
+            <div>
+              <p className="font-button text-button font-bold">Live Alert</p>
+              <p className="font-body-md text-body-md text-on-surface-variant">{toastMessage}</p>
+            </div>
+            <button className="ml-2 opacity-40 hover:opacity-100 transition-opacity" onClick={() => setToastMessage(null)}>
+              <span className="material-symbols-outlined text-[18px]">close</span>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      <motion.div className="px-md md:px-xl py-md md:py-lg space-y-lg" variants={container} initial="hidden" animate="show">
-        {/* ── Filters ────────────────────────────────────────────────────── */}
-        <motion.div className="card-admin" variants={fadeUp}>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-sm">
-            <select name="status" value={filters.status} onChange={handleFilter} className="input-field text-label-md">
-              <option value="">All Statuses</option>
-              {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
-            </select>
-            <select name="category" value={filters.category} onChange={handleFilter} className="input-field text-label-md">
-              <option value="">All Categories</option>
-              {CATEGORIES.map(c => <option key={c} value={c}>{c.replace('_',' ')}</option>)}
-            </select>
-
-            {/* Ward input only editable by Admin */}
-            {role === 'admin' ? (
-              <input name="ward" value={filters.ward} onChange={handleFilter} className="input-field text-label-md" placeholder="Search Ward…" />
-            ) : (
-              <div className="input-field text-label-md bg-surface-container flex items-center text-on-surface-variant italic">
-                {role === 'field_officer' ? `Ward: ${user?.ward || 'Assigned Ward'}` : 'My Assigned Work'}
-              </div>
-            )}
-
-            <input name="date_from" type="date" value={filters.date_from} onChange={handleFilter} className="input-field text-label-md" />
-            <input name="date_to"   type="date" value={filters.date_to}   onChange={handleFilter} className="input-field text-label-md" />
+      <main className="md:pl-64 pt-20 flex flex-col lg:flex-row overflow-hidden">
+        {/* Left Panel */}
+        <section className="w-full lg:w-[480px] xl:w-[520px] flex flex-col bg-surface-container-lowest/60 border-r border-outline-variant/30 shrink-0">
+          {/* Stats Row */}
+          <div className="px-margin-mobile pt-5 pb-3 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4 gap-3">
+            {[
+              { label: 'Total', value: stats.total, icon: 'assignment', tone: 'text-primary' },
+              { label: 'Active', value: stats.active, icon: 'pending_actions', tone: 'text-secondary' },
+              { label: 'Resolved', value: stats.resolved, icon: 'check_circle', tone: 'text-tertiary-container' },
+              { label: 'Pending', value: stats.pending, icon: 'hourglass_empty', tone: 'text-outline' },
+            ].map((s, i) => (
+              <motion.div
+                key={s.label}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: i * 0.08 }}
+                className="data-card p-stack-md"
+              >
+                <span className={`material-symbols-outlined text-[20px] ${s.tone}`} style={{ fontVariationSettings: "'FILL' 1" }}>{s.icon}</span>
+                <p className="font-display-lg-mobile text-[26px] font-extrabold text-primary mt-1">{s.value}</p>
+                <p className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">{s.label}</p>
+              </motion.div>
+            ))}
           </div>
-        </motion.div>
 
-        {/* Error Notification */}
-        <AnimatePresence>
-          {error && (
-            <motion.div
-              className="p-sm rounded-md bg-error-container text-on-error-container text-label-md"
-              initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-            >{error}</motion.div>
-          )}
-        </AnimatePresence>
+          {/* Search + Filter */}
+          <div className="px-margin-mobile pb-3 space-y-3">
+            <div className="relative">
+              <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-outline text-[18px]">search</span>
+              <input
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 bg-surface-container-low rounded-xl border border-outline-variant/60 focus:border-tertiary-fixed-dim focus:ring-2 focus:ring-tertiary-fixed-dim/20 outline-none transition-all font-body-md text-body-md placeholder:text-outline"
+                placeholder="Search by code, ward, or description..."
+                type="text"
+              />
+            </div>
+            <div className="flex gap-1.5 overflow-x-auto pb-1">
+              {['ALL', 'SUBMITTED', 'ACKNOWLEDGED', 'IN_PROGRESS', 'RESOLVED'].map(st => (
+                <button
+                  key={st}
+                  onClick={() => setActiveFilter(st)}
+                  className={`shrink-0 px-3.5 py-1.5 rounded-full font-label-caps text-label-caps transition-all duration-200 ${
+                    activeFilter === st
+                      ? 'bg-primary-container text-on-primary shadow-md'
+                      : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container border border-outline-variant/40'
+                  }`}
+                >
+                  {st === 'ALL' ? 'All' : st.replace('_', ' ')}
+                </button>
+              ))}
+            </div>
+          </div>
 
-        {/* Total Count Header */}
-        <motion.p className="text-label-md text-on-surface-variant font-medium" variants={fadeUp}>
-          {loading ? 'Loading…' : `${total} ${role === 'sanitation_worker' ? 'assigned task' : 'report'}${total !== 1 ? 's' : ''} found`}
-        </motion.p>
+          {/* Report List */}
+          <div className="flex-1 overflow-y-auto px-margin-mobile pb-5 space-y-3">
+            {loading ? (
+              <div className="space-y-3 pt-2">
+                {[1,2,3,4].map(i => (
+                  <div key={i} className="bg-surface-container-low rounded-xl p-4 animate-pulse border border-outline-variant/40">
+                    <div className="h-3 w-24 bg-surface-container-high rounded mb-3" />
+                    <div className="h-4 w-40 bg-surface-container-high rounded mb-2" />
+                    <div className="h-3 w-full bg-surface-container-high rounded" />
+                  </div>
+                ))}
+              </div>
+            ) : filteredReports.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-center opacity-60">
+                <span className="material-symbols-outlined text-5xl text-outline mb-3">inbox</span>
+                <p className="font-button text-button text-on-surface-variant">No reports found</p>
+                <p className="font-body-md text-body-md text-outline mt-1">Try adjusting your search or filter</p>
+              </div>
+            ) : (
+              <AnimatePresence mode="popLayout">
+                {filteredReports.map((r, idx) => (
+                  <motion.div
+                    key={r.id}
+                    layout
+                    initial="hidden"
+                    animate="show"
+                    custom={idx}
+                    variants={staggerItem}
+                    onClick={() => {
+                      setSelectedReportId(r.id);
+                      navigate(`/staff/reports/${r.id}`);
+                    }}
+                    className={`card-base p-4 cursor-pointer group hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 ${
+                      selectedReportId === r.id ? 'border-tertiary-fixed-dim ring-2 ring-tertiary-fixed-dim/20' : ''
+                    }`}
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs font-bold text-primary tracking-wide">{r.tracking_code}</span>
+                      </div>
+                      <StatusChip status={r.status} />
+                    </div>
 
-        {/* ── Report Table ──────────────────────────────────────────────────────── */}
-        <motion.div className="card-admin overflow-x-auto" variants={fadeUp}>
-          <table className="w-full text-body-md border-collapse">
-            <thead>
-              <tr className="border-b border-outline-variant text-label-sm text-outline uppercase tracking-wider">
-                <th className="text-left py-sm px-md">Code</th>
-                <th className="text-left py-sm px-md">Category</th>
-                <th className="text-left py-sm px-md hidden sm:table-cell">Ward</th>
-                <th className="text-left py-sm px-md">Status</th>
-                <th className="text-left py-sm px-md hidden md:table-cell">{role === 'sanitation_worker' ? 'Assigned Worker' : 'Assigned To'}</th>
-                <th className="text-left py-sm px-md hidden lg:table-cell">Date</th>
-                <th className="text-right py-sm px-md">Action</th>
-              </tr>
-            </thead>
-            <motion.tbody variants={container} initial="hidden" animate="show">
-              {loading ? <SkeletonRows /> : (
-                <>
-                  {reports.map((r) => (
-                    <motion.tr
-                      key={r.id}
-                      variants={rowVariant}
-                      onClick={() => navigate(`/staff/reports/${r.id}`)}
-                      className="border-b border-outline-variant/40 cursor-pointer"
-                      whileHover={{ backgroundColor: 'rgba(80,73,200,0.05)', x: 2 }}
-                      transition={{ duration: 0.12 }}
-                    >
-                      <td className="py-sm px-md font-mono text-label-md text-secondary font-semibold">{r.tracking_code}</td>
-                      <td className="py-sm px-md capitalize text-label-md">{r.category.replace('_',' ')}</td>
-                      <td className="py-sm px-md text-label-md text-on-surface-variant hidden sm:table-cell">{r.ward || '—'}</td>
-                      <td className="py-sm px-md"><span className={STATUS_BADGE[r.status]}>{STATUS_LABEL[r.status]}</span></td>
-                      <td className="py-sm px-md text-label-md text-on-surface-variant hidden md:table-cell">{r.assigned_to_name || 'Unassigned'}</td>
-                      <td className="py-sm px-md text-label-sm text-outline hidden lg:table-cell">{new Date(r.created_at).toLocaleDateString()}</td>
-                      <td className="py-sm px-md text-right">
-                        <motion.button
-                          whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.94 }}
-                          onClick={(e) => { e.stopPropagation(); navigate(`/staff/reports/${r.id}`); }}
-                          className="text-xs font-semibold text-secondary bg-secondary/10 hover:bg-secondary/20 px-3 py-1.5 rounded-lg border border-secondary/20 transition-colors"
-                        >
-                          {role === 'sanitation_worker' ? 'Update →' : role === 'field_officer' ? 'Delegate →' : 'Manage →'}
-                        </motion.button>
-                      </td>
-                    </motion.tr>
-                  ))}
-                  {reports.length === 0 && (
-                    <tr>
-                      <td colSpan={7} className="py-lg text-center text-on-surface-variant text-label-md">
-                        {role === 'sanitation_worker'
-                          ? 'You have no assigned tasks at the moment.'
-                          : 'No reports match the active filters.'}
-                      </td>
-                    </tr>
-                  )}
-                </>
-              )}
-            </motion.tbody>
-          </table>
-        </motion.div>
+                    <h3 className="font-button text-button font-bold text-on-surface mb-1 group-hover:text-primary transition-colors capitalize">
+                      {r.category.replace('_', ' ')}
+                      {r.ward && <span className="font-normal text-on-surface-variant"> — Ward {r.ward}</span>}
+                    </h3>
 
-        {/* ── Pagination ──────────────────────────────────────────────────────── */}
-        <AnimatePresence>
-          {total > 20 && (
-            <motion.div
-              className="flex items-center justify-center gap-md"
-              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                    <p className="font-body-md text-body-md text-on-surface-variant/80 line-clamp-1 mb-3">
+                      {r.description || 'No description'}
+                    </p>
+
+                    <div className="flex items-center justify-between pt-3 border-t border-outline-variant/30">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-surface-container-high flex items-center justify-center">
+                          <span className="material-symbols-outlined text-[12px] text-on-surface-variant">person</span>
+                        </div>
+                        <span className="font-label-caps text-label-caps text-on-surface-variant">{r.assigned_to_name || 'Unassigned'}</span>
+                      </div>
+                      <span className="font-label-caps text-label-caps text-outline">{relativeTime(r.created_at)}</span>
+                    </div>
+
+                    <div className="mt-3">
+                      <select
+                        value={r.status}
+                        onChange={(e) => handleStatusChange(r.id, e.target.value, e)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-full font-label-caps text-label-caps bg-surface-container-low border border-outline-variant rounded-lg px-3 py-2 text-primary cursor-pointer outline-none transition-all hover:border-tertiary-fixed-dim"
+                      >
+                        <option value="submitted">Submitted</option>
+                        <option value="acknowledged">Acknowledged</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="resolved">Resolved</option>
+                        <option value="closed">Closed</option>
+                      </select>
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            )}
+          </div>
+        </section>
+
+        {/* Right Panel - Real Map */}
+        <section className="flex-1 relative bg-surface-container hidden lg:block overflow-hidden">
+          {/* Floating Filter Bar */}
+          <div className="absolute top-5 left-1/2 -translate-x-1/2 z-[500] flex items-center gap-1.5 bg-surface-container-lowest/90 backdrop-blur-xl p-1.5 rounded-full shadow-xl border border-outline-variant/40">
+            {['ALL', 'SUBMITTED', 'ACKNOWLEDGED', 'IN_PROGRESS', 'RESOLVED'].map(st => (
+              <button
+                key={st}
+                onClick={() => setActiveFilter(st)}
+                className={`px-3.5 py-1.5 rounded-full font-label-caps text-label-caps transition-all duration-200 ${
+                  activeFilter === st
+                    ? 'bg-primary-container text-on-primary shadow-lg'
+                    : 'text-on-surface-variant hover:bg-surface-container-low'
+                }`}
+              >
+                {st === 'ALL' ? 'All' : st.replace('_', ' ')}
+              </button>
+            ))}
+          </div>
+
+          {mapReports.length > 0 ? (
+            <MapContainer
+              center={[mapReports[0].latitude, mapReports[0].longitude]}
+              zoom={13}
+              className="w-full h-full z-0"
             >
-              <motion.button
-                whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.95 }}
-                onClick={() => setPage(p => Math.max(1, p-1))} disabled={page === 1}
-                className="btn-ghost-admin text-label-md disabled:opacity-40 px-4 py-2 rounded-xl"
-              >← Prev</motion.button>
-              <span className="text-label-md text-on-surface-variant font-medium">
-                Page {page} of {Math.ceil(total/20)}
-              </span>
-              <motion.button
-                whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.95 }}
-                onClick={() => setPage(p => p+1)} disabled={page >= Math.ceil(total/20)}
-                className="btn-ghost-admin text-label-md disabled:opacity-40 px-4 py-2 rounded-xl"
-              >Next →</motion.button>
-            </motion.div>
+              <TileLayer
+                attribution='&copy; OpenStreetMap contributors'
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              />
+              {mapReports.map(rep => (
+                <CircleMarker
+                  key={rep.id}
+                  center={[rep.latitude, rep.longitude]}
+                  radius={9}
+                  pathOptions={{ ...MAP_STYLE[rep.status] || MAP_STYLE.submitted, weight: 2, fillOpacity: 0.65 }}
+                  eventHandlers={{ click: () => navigate(`/staff/reports/${rep.id}`) }}
+                >
+                  <Tooltip>
+                    <div className="font-label-caps text-label-caps">
+                      <strong>{rep.tracking_code}</strong>
+                      <br />
+                      {rep.category.replace('_', ' ')} — Ward {rep.ward || '?'}
+                      <br />
+                      {rep.assigned_to_name || 'Unassigned'}
+                    </div>
+                  </Tooltip>
+                </CircleMarker>
+              ))}
+            </MapContainer>
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center text-center opacity-50">
+              <span className="material-symbols-outlined text-6xl text-outline mb-3">map</span>
+              <p className="font-button text-button text-on-surface-variant">No geo-tagged reports to display</p>
+            </div>
           )}
-        </AnimatePresence>
-      </motion.div>
-    </motion.div>
+
+          {/* Bottom Right - Legend */}
+          <div className="absolute bottom-5 right-5 z-[500] flex flex-col gap-3">
+            <div className="bg-surface-container-lowest/90 backdrop-blur-xl p-4 rounded-xl shadow-xl border border-outline-variant/40 w-44">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="material-symbols-outlined text-sm text-primary">map</span>
+                <h4 className="font-label-caps text-label-caps font-bold text-on-surface uppercase tracking-wider">Legend</h4>
+              </div>
+              <div className="space-y-2">
+                {LEGEND.map(l => (
+                  <div key={l.label} className="flex items-center gap-2.5">
+                    <span className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ background: l.color }} />
+                    <span className="font-label-caps text-label-caps text-on-surface-variant">{l.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-primary-container text-on-primary p-4 rounded-xl shadow-xl flex items-center gap-3">
+              <div className="flex-1">
+                <p className="font-label-caps text-label-caps opacity-80 font-bold uppercase tracking-widest">Network</p>
+                <p className="font-button text-button font-bold">System Optimal</p>
+              </div>
+              <span className="w-2 h-2 rounded-full bg-tertiary-fixed animate-pulse shadow-lg shadow-tertiary-fixed/50" />
+            </div>
+          </div>
+        </section>
+      </main>
+
+      {/* Mobile bottom nav */}
+      <nav className="fixed bottom-0 w-full z-50 bg-surface-container-lowest/90 backdrop-blur-md border-t border-outline-variant/30 md:hidden">
+        <div className="flex justify-around items-center h-14">
+          <Link to="/staff/dashboard" className="flex flex-col items-center gap-0.5 text-primary">
+            <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>dashboard</span>
+            <span className="font-label-caps text-[10px]">Dashboard</span>
+          </Link>
+          <Link to="/staff/reports" className="flex flex-col items-center gap-0.5 text-on-surface-variant">
+            <span className="material-symbols-outlined text-[20px]">assessment</span>
+            <span className="font-label-caps text-[10px]">Reports</span>
+          </Link>
+          <Link to="/staff/wards" className="flex flex-col items-center gap-0.5 text-on-surface-variant">
+            <span className="material-symbols-outlined text-[20px]">leaderboard</span>
+            <span className="font-label-caps text-[10px]">Wards</span>
+          </Link>
+          <Link to="/" className="flex flex-col items-center gap-0.5 text-on-surface-variant">
+            <span className="material-symbols-outlined text-[20px]">public</span>
+            <span className="font-label-caps text-[10px]">Citizen</span>
+          </Link>
+        </div>
+      </nav>
+    </div>
   );
 }

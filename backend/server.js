@@ -10,6 +10,8 @@ const { initWebSocket }  = require('./utils/websocket');
 const reportRoutes    = require('./routes/reports');
 const authRoutes      = require('./routes/auth');
 const analyticsRoutes = require('./routes/analytics');
+const fleetRoutes     = require('./routes/fleet');
+const publicRoutes    = require('./routes/public');
 
 const app  = express();
 const PORT = process.env.PORT || 5000;
@@ -48,6 +50,8 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/auth',      authRoutes);
 app.use('/api/reports',   reportRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/fleet',     fleetRoutes);
+app.use('/api/public',    publicRoutes);
 
 // ─── 404 fallback ─────────────────────────────────────────────────────────────
 app.use((_req, res) => {

@@ -1,20 +1,10 @@
-// Page: Report Detail Panel
-// Desktop-first — status timeline, assign team, update status
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { listReports, updateReportStatus, assignReport } from '../services/api';
+import { updateReportStatus, assignReport } from '../services/api';
 import api from '../services/api';
+import { StatusChip } from '../components/StatusChip';
 
-const STATUSES = ['submitted','acknowledged','in_progress','resolved','closed'];
-const STATUS_LABEL = {
-  submitted:'Submitted', acknowledged:'Acknowledged',
-  in_progress:'In Progress', resolved:'Resolved', closed:'Closed',
-};
-const STATUS_BADGE = {
-  submitted:'badge-submitted', acknowledged:'badge-acknowledged',
-  in_progress:'badge-in-progress', resolved:'badge-resolved', closed:'badge-closed',
-};
+const STATUS_STEPS = ['submitted', 'acknowledged', 'in_progress', 'resolved', 'closed'];
 
 export default function ReportDetailPanel() {
   const { id }    = useParams();
@@ -27,21 +17,14 @@ export default function ReportDetailPanel() {
   const [note,          setNote]          = useState('');
   const [assignTo,      setAssignTo]      = useState('');
   const [loading,       setLoading]       = useState(true);
-  const [statusLoading, setStatusLoading] = useState(false);
-  const [assignLoading, setAssignLoading] = useState(false);
+  const [saving,        setSaving]        = useState(false);
   const [error,         setError]         = useState('');
   const [success,       setSuccess]       = useState('');
+  const [resolutionPhoto, setResolutionPhoto] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true); setError('');
     try {
-      // Fetch single report via list endpoint filtered by… using direct call
-      const [rRes, oRes] = await Promise.all([
-        api.get(`/api/reports?page=1&limit=1`),  // will fetch by id via full list
-        api.get('/api/reports?page=1&limit=200'), // fetch field officers from list (stub — will be replaced with dedicated endpoint)
-      ]);
-
-      // Find report by id in paginated list — temporary until dedicated GET /api/reports/:id
       const allRes = await api.get('/api/reports?limit=200');
       const found  = allRes.data.reports.find(r => r.id === parseInt(id, 10));
       if (!found) { setError('Report not found.'); setLoading(false); return; }
@@ -49,30 +32,13 @@ export default function ReportDetailPanel() {
       setNewStatus(found.status);
       if (found.assigned_to_id) setAssignTo(found.assigned_to_id);
 
-
-      // Fetch history via track endpoint (tracking_code needed)
       const trackRes = await api.get(`/api/reports/track/${found.tracking_code}`);
       setHistory(trackRes.data.history || []);
 
-      // Fetch staff users from /api/auth/users
       try {
-        const currentUser = JSON.parse(localStorage.getItem('sn_user') || '{}');
         const staffRes = await api.get('/api/auth/users');
-        const staffUsers = staffRes.data.users || [];
-        
-        let assignable = [];
-        if (currentUser?.role === 'field_officer') {
-          // Field Officers delegate tasks to Sanitation Workers in their ward
-          assignable = staffUsers.filter(u => u.role === 'sanitation_worker');
-        } else {
-          // System Admins can assign to Ward Officers or Sanitation Workers
-          assignable = staffUsers.filter(
-            u => u.role === 'field_officer' || u.role === 'sanitation_worker'
-          );
-        }
-        setOfficers(assignable);
-      } catch (e) {
-        console.error('Failed to load staff users', e);
+        setOfficers(staffRes.data.users || []);
+      } catch {
         setOfficers([]);
       }
     } catch (err) {
@@ -83,469 +49,255 @@ export default function ReportDetailPanel() {
     }
   }, [id, navigate]);
 
-
   useEffect(() => { load(); }, [load]);
 
-  // ── Real-time WebSocket connection for live report updates ─────────────────
-  useEffect(() => {
-    const wsUrl = `ws://${window.location.hostname}:5000`;
-    let socket;
-
-    try {
-      socket = new WebSocket(wsUrl);
-      socket.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (['REPORT_STATUS_UPDATED', 'REPORT_ASSIGNED'].includes(data.type)) {
-            load();
-          }
-        } catch {
-          // ignore non-json ping/pong messages
-        }
-      };
-    } catch (e) {
-      console.error('WebSocket connection failed:', e);
-    }
-
-    return () => {
-      if (socket) socket.close();
-    };
-  }, [load]);
-
-  const [resolutionPhoto, setResolutionPhoto] = useState(null);
-
-  const handleStatusUpdate = async e => {
-    e.preventDefault();
-    setStatusLoading(true); setError(''); setSuccess('');
+  const handleSaveChanges = async () => {
+    setSaving(true); setError(''); setSuccess('');
     try {
       if (newStatus === 'resolved' && !resolutionPhoto && !report?.resolution_photo_path) {
-        setError('A proof-of-work cleanup photo is required to mark this task as RESOLVED.');
-        setStatusLoading(false);
+        setError('A proof-of-work photo is required to mark this task as Resolved.');
+        setSaving(false);
         return;
       }
 
-      if (resolutionPhoto) {
-        const formData = new FormData();
-        formData.append('status', newStatus);
-        if (note) formData.append('note', note);
-        formData.append('resolution_photo', resolutionPhoto);
-        await updateReportStatus(id, formData);
-      } else {
-        await updateReportStatus(id, { status: newStatus, note });
+      if (assignTo && parseInt(assignTo, 10) !== report?.assigned_to_id) {
+        await assignReport(id, assignTo);
       }
 
-      setSuccess('Status updated successfully.');
-      setNote('');
-      setResolutionPhoto(null);
+      if (newStatus !== report?.status || note.trim() || resolutionPhoto) {
+        if (resolutionPhoto) {
+          const formData = new FormData();
+          formData.append('status', newStatus);
+          if (note) formData.append('note', note);
+          formData.append('resolution_photo', resolutionPhoto);
+          await updateReportStatus(id, formData);
+        } else {
+          await updateReportStatus(id, { status: newStatus, note });
+        }
+      }
+
+      setSuccess('Changes saved successfully.');
       load();
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to update status.');
+      setError(err.response?.data?.error || 'Failed to save changes.');
     } finally {
-      setStatusLoading(false);
+      setSaving(false);
     }
   };
 
-  const handleAssign = async e => {
-    e.preventDefault();
-    if (!assignTo) return setError('Select a field officer first.');
-    setAssignLoading(true); setError(''); setSuccess('');
-    try {
-      await assignReport(id, assignTo);
-      setSuccess('Report assigned successfully.');
-      load();
-    } catch (err) {
-      setError(err.response?.data?.error || 'Failed to assign report.');
-    } finally {
-      setAssignLoading(false);
-    }
-  };
+  if (loading) {
+    return (
+      <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center text-on-primary font-button text-button">
+        Loading Report Details...
+      </div>
+    );
+  }
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center text-on-surface-variant">Loading…</div>;
+  const currentStepIdx = STATUS_STEPS.indexOf(report?.status || 'submitted');
 
   return (
-    <motion.div
-      className="min-h-screen bg-surface-container-low"
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}
-    >
-      {/* Nav */}
-      <motion.header
-        className="bg-secondary text-on-secondary px-md md:px-xl py-md flex items-center gap-md shadow-card-admin"
-        initial={{ y: -50, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ type: 'spring', stiffness: 280, damping: 26 }}
-      >
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-stack-md md:p-stack-lg font-body-md">
+      {/* Report Detail Panel Modal */}
+      <div className="bg-surface-container-lowest w-full max-w-5xl max-h-[90vh] rounded-xl shadow-2xl flex flex-col md:flex-row overflow-hidden border border-outline-variant relative animate-fade-in">
+        {/* Close Button */}
         <button
           onClick={() => navigate('/staff/dashboard')}
-          className="inline-flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-3.5 py-2 rounded-xl border border-white/20 transition-all active:scale-95 shrink-0"
+          className="absolute top-4 right-4 z-20 bg-surface-container-high/70 hover:bg-surface-container-highest p-2 rounded-full transition-colors text-on-surface"
         >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" />
-          </svg>
-          Dashboard
+          <span className="material-symbols-outlined">close</span>
         </button>
 
-        <div className="flex-1 flex items-center gap-3 min-w-0">
-          <h1 className="text-headline-md font-semibold truncate">Report Detail</h1>
-          {report && (
-            <span className="font-mono text-xs font-bold bg-white/15 text-white px-2.5 py-1 rounded-lg border border-white/20 tracking-widest shrink-0">
-              {report.tracking_code}
-            </span>
-          )}
-        </div>
+        {/* Left Column: Visuals & Core Info */}
+        <div className="w-full md:w-5/12 bg-surface-container-low border-r border-outline-variant flex flex-col overflow-y-auto custom-scrollbar">
+          {/* Main Image */}
+          <div className="w-full aspect-[4/3] bg-surface-dim relative group overflow-hidden">
+            <img
+              className="w-full h-full object-cover"
+              alt="Report photo"
+              src={report?.photo_path ? `/${report.photo_path}` : "https://lh3.googleusercontent.com/aida-public/AB6AXuCv0cSq4aXti1x9caH5sgb59JvGjaRA552wNhBlDAgRgqvFlaqJ4DnwC5NtkMTfZ8OhN4X4QhOhpF85vATYqtNJZF4wwhohss4SkaKwAa-NoAuo92ddITbSA1eNecs3BFguYoNpZJXPQKu2tcltPGpNN81J7w_3byro4DlqoXrW-xUzaCbt2vQ7sLds2q3irz6G17AkVb61Y__8k-iWTUc0g9Rhs9rVgHjvNHIeCN_tg-YLCEumJyogob9VTwtP8Z1Zfh2X6r-z-BA"}
+            />
+            <div className="absolute bottom-4 left-4 flex gap-2">
+              <span className="bg-primary/90 text-on-primary font-label-caps text-label-caps px-3 py-1 rounded-full flex items-center gap-1 shadow-md font-semibold capitalize">
+                <span className="material-symbols-outlined text-[14px]">cleaning_services</span>
+                {report?.category?.replace('_', ' ') || 'Waste Management'}
+              </span>
+              <StatusChip status={report?.status} className="bg-white/90" />
+            </div>
+          </div>
 
-        {report && (
-          <span className={`${STATUS_BADGE[report.status]} shrink-0`}>
-            {STATUS_LABEL[report.status]}
-          </span>
-        )}
-      </motion.header>
-
-      <div className="px-md md:px-xl py-md md:py-lg grid grid-cols-1 lg:grid-cols-3 gap-lg">
-        {/* Left — report info + timeline */}
-        <motion.div
-          className="lg:col-span-2 flex flex-col gap-lg"
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ type: 'spring', stiffness: 240, damping: 24, delay: 0.08 }}
-        >
-          <AnimatePresence>
-            {(error || success) && (
-              <motion.div
-                className={`p-sm rounded-md text-label-md ${error ? 'bg-error-container text-on-error-container' : 'bg-primary/15 text-primary'}`}
-                initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-              >
-                {error || success}
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {report && (
-            <div className="card-admin">
-              <h2 className="text-headline-md mb-md">Report Info</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-md text-body-md">
-                <div className="flex flex-col pb-xs border-b border-outline-variant/30">
-                  <span className="text-label-sm font-semibold text-outline uppercase tracking-wider">Category</span>
-                  <span className="capitalize text-on-surface font-medium">{report.category.replace('_',' ')}</span>
-                </div>
-                <div className="flex flex-col pb-xs border-b border-outline-variant/30">
-                  <span className="text-label-sm font-semibold text-outline uppercase tracking-wider">Ward</span>
-                  <span className="text-on-surface font-medium">{report.ward || '—'}</span>
-                </div>
-                <div className="flex flex-col pb-xs border-b border-outline-variant/30 min-w-0">
-                  <span className="text-label-sm font-semibold text-outline uppercase tracking-wider">Reporter Email</span>
-                  <span className="text-on-surface font-medium truncate" title={report.reporter_email}>{report.reporter_email || '—'}</span>
-                </div>
-                <div className="flex flex-col pb-xs border-b border-outline-variant/30">
-                  <span className="text-label-sm font-semibold text-outline uppercase tracking-wider">Location</span>
-                  <span className="font-mono text-on-surface font-medium">{report.latitude?.toFixed(5)}, {report.longitude?.toFixed(5)}</span>
-                </div>
-                <div className="flex flex-col pb-xs border-b border-outline-variant/30">
-                  <span className="text-label-sm font-semibold text-outline uppercase tracking-wider">Assigned To</span>
-                  <span className="text-on-surface font-medium">{report.assigned_to_name || '—'}</span>
-                </div>
-                <div className="flex flex-col pb-xs border-b border-outline-variant/30">
-                  <span className="text-label-sm font-semibold text-outline uppercase tracking-wider">Submitted</span>
-                  <span className="text-on-surface font-medium">{new Date(report.created_at).toLocaleString()}</span>
-                </div>
+          {/* Detailed Info */}
+          <div className="p-stack-lg space-y-stack-lg">
+            <div className="space-y-stack-sm">
+              <h3 className="font-headline-md text-headline-md text-on-surface font-bold">
+                Report #{report?.tracking_code}
+              </h3>
+              <div className="flex items-center gap-2 text-on-surface-variant font-body-md text-body-md">
+                <span className="material-symbols-outlined text-[20px]">location_on</span>
+                Ward: {report?.ward || 'General Area'}
               </div>
-              {report.description && (
-                <div className="mt-md pt-md border-t border-outline-variant">
-                  <p className="text-label-md text-outline mb-xs">Description</p>
-                  <p className="text-body-md">{report.description}</p>
-                </div>
-              )}
-              {/* Dispute Alert Banner */}
-              {report.is_disputed && (
-                <div className="mt-md p-md bg-error-container text-on-error-container rounded-xl border border-error/30 space-y-1">
-                  <div className="flex items-center gap-2 font-bold text-sm">
-                    <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
-                    CITIZEN DISPUTED THIS RESOLUTION
-                  </div>
-                  <p className="text-xs">{report.dispute_reason}</p>
-                </div>
-              )}
-
-              {/* Photos Comparison (Original vs Resolution Proof) */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-md mt-md">
-                {report.photo_path && (
-                  <div>
-                    <p className="text-label-sm font-semibold text-outline mb-xs uppercase tracking-wider">Original Citizen Photo</p>
-                    <img
-                      src={`/${report.photo_path}`}
-                      alt="Report original photo"
-                      className="w-full max-h-64 object-cover rounded-xl border border-outline-variant"
-                    />
-                  </div>
-                )}
-                {report.resolution_photo_path && (
-                  <div>
-                    <p className="text-label-sm font-semibold text-primary mb-xs uppercase tracking-wider flex items-center gap-1">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                      </svg>
-                      Staff Proof-of-Work Photo
-                    </p>
-                    <img
-                      src={`/${report.resolution_photo_path}`}
-                      alt="Staff resolution proof photo"
-                      className="w-full max-h-64 object-cover rounded-xl border-2 border-primary/40"
-                    />
-                  </div>
-                )}
+              <div className="flex items-center gap-2 text-on-surface-variant font-body-md text-body-md">
+                <span className="material-symbols-outlined text-[20px]">schedule</span>
+                Reported: {new Date(report?.created_at).toLocaleString()}
               </div>
             </div>
-          )}
 
-          {/* Status timeline */}
-          <div className="card-admin">
-            <h2 className="text-headline-md mb-md">Status Timeline</h2>
-            {history.length === 0 ? (
-              <p className="text-on-surface-variant text-label-md">No history yet.</p>
-            ) : (
-              <ol className="relative border-l border-outline-variant ml-sm">
-                {history.map((h, i) => (
-                  <li key={i} className="mb-md ml-lg last:mb-0">
-                    <div className="absolute -left-[7px] mt-1 w-3.5 h-3.5 rounded-full bg-secondary border-2 border-white" />
-                    <div className="flex items-center gap-sm mb-xs">
-                      <span className={STATUS_BADGE[h.status]}>{STATUS_LABEL[h.status]}</span>
-                      <span className="text-label-sm text-outline">{new Date(h.created_at).toLocaleString()}</span>
-                    </div>
-                    {h.note && <p className="text-body-md text-on-surface-variant">{h.note}</p>}
-                    {h.changed_by_name && <p className="text-label-sm text-outline">by {h.changed_by_name}</p>}
-                  </li>
-                ))}
-              </ol>
-            )}
+            <div className="bg-surface rounded-lg p-stack-md border border-outline-variant space-y-stack-sm">
+              <h4 className="font-label-caps text-label-caps text-outline uppercase tracking-wider font-semibold">Description</h4>
+              <p className="font-body-md text-body-md text-on-surface-variant leading-relaxed">
+                {report?.description || 'No detailed description submitted.'}
+              </p>
+            </div>
+
+            {/* Location Marker */}
+            <div className="space-y-stack-sm">
+              <h4 className="font-label-caps text-label-caps text-outline uppercase tracking-wider font-semibold">Location Marker</h4>
+              <div className="h-32 w-full bg-surface-variant rounded-lg border border-outline-variant overflow-hidden">
+                <div className="w-full h-full bg-cover bg-center" style={{ backgroundImage: `url('https://lh3.googleusercontent.com/aida-public/AB6AXuBX8TvjWhbd2mSUpQNFlYe9zHKyoFsyB-b5GMpzQor2CKOanovevtLO0vYzfMib4YfGu5Ri4WA_k4ELH3KXN049n2BnqTcd6tw_5bW3c7pwkQym28Hb-g5GI4-OjGAhxuaDyKdagJPB9l3mtIAlEcJxsAM3R9Ct7Cay__mseW2Pdr8VywSQnlmmZKAsX1d9t8KO7hgiC5A6zYYSLDveS2Plo4zu_Vqw9ETdRKNTHL8d9spckjDI9Obeu5Mv0kMrX5R_zpEGGz6jymo')` }}></div>
+              </div>
+            </div>
           </div>
-        </motion.div>
+        </div>
 
-        {/* Right — actions */}
-        <div className="flex flex-col gap-lg">
-          {/* Update status */}
-          <div className="card-admin">
-            <h2 className="text-headline-md mb-xs">Update Status</h2>
-            <p className="text-label-sm text-on-surface-variant mb-md">Select a new status to transition this report</p>
+        {/* Right Column: Operations & Workflow */}
+        <div className="w-full md:w-7/12 flex flex-col h-full overflow-y-auto custom-scrollbar">
+          {/* Header Actions */}
+          <div className="p-stack-lg border-b border-outline-variant flex flex-wrap gap-stack-md items-center justify-between sticky top-0 bg-surface-container-lowest z-10">
+            <div>
+              <p className="font-label-caps text-label-caps text-outline uppercase font-bold">Workstream Activity</p>
+              <h2 className="font-headline-md text-headline-md font-bold text-primary">Resolution Workflow</h2>
+            </div>
+            <button
+              onClick={() => window.print()}
+              className="bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-button text-button px-stack-md py-stack-sm rounded-lg transition-colors flex items-center gap-stack-sm border border-outline-variant font-semibold"
+            >
+              <span className="material-symbols-outlined">print</span>
+              Export
+            </button>
+          </div>
 
-            <form onSubmit={handleStatusUpdate} className="flex flex-col gap-md">
-              {/* Status step buttons */}
-              <div className="flex flex-col gap-xs">
-                {STATUSES.map((s) => {
-                  const isCurrent = s === report?.status;
-                  const isSelected = s === newStatus;
-                  const statusStyles = {
-                    submitted:    { bg: 'bg-outline-variant/20', activeBg: 'bg-outline-variant/40', ring: 'ring-outline', dot: 'bg-outline' },
-                    acknowledged: { bg: 'bg-secondary/10', activeBg: 'bg-secondary/20', ring: 'ring-secondary', dot: 'bg-secondary' },
-                    in_progress:  { bg: 'bg-tertiary/10', activeBg: 'bg-tertiary/20', ring: 'ring-tertiary', dot: 'bg-tertiary' },
-                    resolved:     { bg: 'bg-primary/10', activeBg: 'bg-primary/20', ring: 'ring-primary', dot: 'bg-primary' },
-                    closed:       { bg: 'bg-surface-container-high', activeBg: 'bg-surface-container-highest', ring: 'ring-outline-variant', dot: 'bg-outline-variant' },
-                  };
-                  const style = statusStyles[s] || statusStyles.submitted;
+          <div className="p-stack-lg space-y-stack-lg">
+            {(error || success) && (
+              <div className={`p-stack-md rounded-xl font-button text-button font-semibold ${error ? 'bg-error-container text-on-error-container' : 'bg-primary-container text-on-primary'}`}>
+                {error || success}
+              </div>
+            )}
+
+            {/* Status Stepper */}
+            <div className="relative">
+              <h4 className="font-label-caps text-label-caps text-outline uppercase mb-stack-lg font-bold">Status History</h4>
+              <div className="space-y-0">
+                {STATUS_STEPS.map((step, idx) => {
+                  const isDone = idx <= currentStepIdx;
+                  const isCurrent = idx === currentStepIdx;
 
                   return (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => setNewStatus(s)}
-                      className={`w-full flex items-center gap-sm px-md py-sm rounded-lg text-left transition-all text-label-md
-                        ${isSelected
-                          ? `${style.activeBg} ring-2 ${style.ring} font-semibold text-on-surface`
-                          : `${style.bg} hover:brightness-95 text-on-surface-variant`
-                        }`}
-                    >
-                      {/* Status dot */}
-                      <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${style.dot} ${isSelected ? 'scale-125' : 'opacity-60'} transition-transform`} />
-                      <span className="flex-1">{STATUS_LABEL[s]}</span>
-                      {isCurrent && (
-                        <span className="text-label-sm text-on-surface-variant bg-surface-container px-2 py-0.5 rounded-full border border-outline-variant">
-                          Current
-                        </span>
-                      )}
-                      {isSelected && !isCurrent && (
-                        <svg className="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                        </svg>
-                      )}
-                    </button>
+                    <div key={step} className={`flex gap-stack-md ${idx > currentStepIdx ? 'opacity-40' : ''}`}>
+                      <div className="flex flex-col items-center">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${
+                          isCurrent
+                            ? 'bg-primary-container text-on-primary border-2 border-primary'
+                            : isDone
+                              ? 'bg-primary text-on-primary'
+                              : 'bg-surface-container-highest border border-outline text-outline'
+                        }`}>
+                          {isDone ? <span className="material-symbols-outlined text-[18px]">check</span> : <span className="material-symbols-outlined text-[18px]">radio_button_unchecked</span>}
+                        </div>
+                        {idx < STATUS_STEPS.length - 1 && (
+                          <div className={`w-0.5 h-12 ${isDone ? 'bg-primary' : 'bg-outline-variant'}`}></div>
+                        )}
+                      </div>
+                      <div className="pb-stack-lg">
+                        <p className={`font-button text-button capitalize font-bold ${isCurrent ? 'text-primary' : 'text-on-surface'}`}>
+                          {step.replace('_', ' ')}
+                        </p>
+                        <p className="font-body-md text-body-md text-on-surface-variant">
+                          {isDone ? 'Verified step' : 'Pending step'}
+                        </p>
+                      </div>
+                    </div>
                   );
                 })}
               </div>
+            </div>
 
-              {/* Note field */}
-              <div>
-                <label className="input-label">Staff Note (optional)</label>
-                <textarea
-                  value={note} onChange={e => setNote(e.target.value)}
-                  className="input-field resize-none min-h-[80px]"
-                  placeholder="Explain the reason for this status change…"
+            {/* Operational Controls */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-stack-lg pt-stack-lg border-t border-outline-variant">
+              <div className="space-y-stack-sm">
+                <label className="block font-button text-button text-on-surface font-semibold">Update Status</label>
+                <select
+                  value={newStatus}
+                  onChange={e => setNewStatus(e.target.value)}
+                  className="w-full bg-surface-container-low border border-outline text-on-surface rounded-lg px-stack-md py-stack-md outline-none focus:ring-2 focus:ring-tertiary-fixed-dim font-body-md text-body-md"
+                >
+                  <option value="submitted">Submitted</option>
+                  <option value="acknowledged">Acknowledged</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="resolved">Resolved</option>
+                  <option value="closed">Closed</option>
+                </select>
+              </div>
+
+              <div className="space-y-stack-sm">
+                <label className="block font-button text-button text-on-surface font-semibold">Assign Cleanup Team</label>
+                <select
+                  value={assignTo}
+                  onChange={e => setAssignTo(e.target.value)}
+                  className="w-full bg-surface-container-low border border-outline text-on-surface rounded-lg px-stack-md py-stack-md outline-none focus:ring-2 focus:ring-tertiary-fixed-dim font-body-md text-body-md"
+                >
+                  <option value="">Select Staff Member...</option>
+                  {officers.map(o => (
+                    <option key={o.id} value={o.id}>
+                      {o.name} ({o.role.replace('_', ' ')})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Photo upload if resolving */}
+            {newStatus === 'resolved' && (
+              <div className="space-y-stack-sm bg-primary/10 p-stack-md rounded-xl border border-primary/20">
+                <label className="block font-button text-button text-primary font-bold">Proof-of-Work Photo (Required for Resolution)</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={e => setResolutionPhoto(e.target.files[0])}
+                  className="w-full font-body-md text-body-md text-on-surface cursor-pointer"
                 />
               </div>
+            )}
 
-              {/* Proof of Work Photo Input (Mandatory when resolving) */}
-              {newStatus === 'resolved' && (
-                <div className="bg-primary/10 border border-primary/30 p-md rounded-xl space-y-sm">
-                  <label className="block text-label-md font-semibold text-primary flex items-center gap-1.5">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    Upload Proof-of-Work Photo (Required)
-                  </label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={e => setResolutionPhoto(e.target.files[0])}
-                    className="w-full text-xs text-on-surface file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-on-primary hover:file:bg-primary/90"
-                  />
-                  <p className="text-label-sm text-on-surface-variant">
-                    Take a photo of the cleaned site. Camera GPS EXIF will be logged for verification audit.
-                  </p>
-                </div>
-              )}
+            {/* Internal Notes */}
+            <div className="space-y-stack-sm">
+              <label className="block font-button text-button text-on-surface font-semibold">Add Internal Note</label>
+              <textarea
+                value={note}
+                onChange={e => setNote(e.target.value)}
+                className="w-full bg-surface-container-low border border-outline text-on-surface rounded-lg px-stack-md py-stack-md outline-none focus:ring-2 focus:ring-tertiary-fixed-dim font-body-md text-body-md"
+                placeholder="Add administrative details or instructions for the team..."
+                rows={3}
+              />
+            </div>
 
-              {/* Submit button */}
-              {(() => {
-                const noChange = newStatus === report?.status && !note.trim();
-                const btnColors = {
-                  submitted:    'bg-outline hover:bg-outline/80',
-                  acknowledged: 'bg-secondary hover:bg-secondary/90',
-                  in_progress:  'bg-tertiary hover:bg-tertiary/90',
-                  resolved:     'bg-primary hover:bg-primary/90',
-                  closed:       'bg-on-surface-variant hover:bg-on-surface-variant/80',
-                };
-                return (
-                  <button
-                    type="submit"
-                    disabled={statusLoading || noChange}
-                    className={`w-full font-semibold px-4 py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-2
-                      ${noChange
-                        ? 'bg-surface-container-high text-on-surface-variant/50 cursor-not-allowed border border-outline-variant'
-                        : `${btnColors[newStatus] || 'bg-primary hover:bg-primary/90'} text-white active:scale-[0.98]`
-                      }
-                      disabled:opacity-60`}
-                  >
-                    {statusLoading ? (
-                      <>
-                        <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                        Updating…
-                      </>
-                    ) : noChange ? (
-                      <>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                        </svg>
-                        Up to Date
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                        Update to {STATUS_LABEL[newStatus]}
-                      </>
-                    )}
-                  </button>
-                );
-              })()}
-            </form>
+            {/* Final Action Row */}
+            <div className="flex justify-end gap-stack-md pt-stack-lg border-t border-outline-variant">
+              <button
+                onClick={() => navigate('/staff/dashboard')}
+                className="px-stack-lg py-stack-md text-secondary font-button text-button hover:bg-secondary/5 rounded-lg border border-secondary font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveChanges}
+                disabled={saving}
+                className="px-stack-lg py-stack-md bg-primary-container text-on-primary font-button text-button rounded-lg shadow-md hover:opacity-90 active:scale-[0.98] transition-all font-bold disabled:opacity-50"
+              >
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
           </div>
-
-          {/* Assign Panel — ONLY visible to Admin & Field Officer (Hidden for Sanitation Workers) */}
-          {(() => {
-            const currentUser = JSON.parse(localStorage.getItem('sn_user') || '{}');
-            const isWorker = currentUser?.role === 'sanitation_worker';
-            const isOfficer = currentUser?.role === 'field_officer';
-
-            if (isWorker) return null; // Sanitation Workers cannot assign or delegate tasks!
-
-            return (
-              <div className="card-admin">
-                <div className="flex items-center justify-between mb-md">
-                  <h2 className="text-headline-md">{isOfficer ? 'Delegate Task' : 'Assign Staff'}</h2>
-                  {report?.assigned_to_name && (
-                    <span className="inline-flex items-center gap-1.5 bg-primary/15 text-primary text-xs font-semibold px-3 py-1 rounded-full border border-primary/20">
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                      </svg>
-                      Assigned
-                    </span>
-                  )}
-                </div>
-
-                <form onSubmit={handleAssign} className="flex flex-col gap-md">
-                  <div>
-                    <label className="input-label">
-                      {isOfficer ? 'Select Sanitation Field Worker' : 'Assigned Field Officer / Worker'}
-                    </label>
-                    <select value={assignTo} onChange={e => setAssignTo(e.target.value)} className="input-field">
-                      <option value="">{isOfficer ? 'Select field worker…' : 'Select officer or staff…'}</option>
-                      {officers.map(o => (
-                        <option key={o.id} value={o.id}>
-                          {o.name} ({o.role === 'field_officer' ? 'Officer' : 'Field Worker'}{o.ward ? ` - ${o.ward}` : ''})
-                        </option>
-                      ))}
-                    </select>
-                    {officers.length === 0 && (
-                      <p className="text-label-sm text-on-surface-variant mt-xs">
-                        {isOfficer
-                          ? 'No field workers found in your ward. Ask Admin to register workers in Staff Management.'
-                          : 'No staff registered yet. Add staff in the "Staff Management" panel.'}
-                      </p>
-                    )}
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={assignLoading || officers.length === 0 || !assignTo}
-                    className={`w-full font-semibold px-4 py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-2
-                      ${!assignTo || officers.length === 0
-                        ? 'bg-surface-container-high text-on-surface-variant/50 cursor-not-allowed border border-outline-variant'
-                        : report?.assigned_to_id && parseInt(assignTo, 10) === report?.assigned_to_id
-                          ? 'bg-primary text-on-primary'
-                          : 'bg-secondary text-on-secondary hover:brightness-110 active:scale-[0.98]'
-                      }
-                      disabled:opacity-60`}
-                  >
-                    {assignLoading ? (
-                      <>
-                        <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                        Updating…
-                      </>
-                    ) : report?.assigned_to_id ? (
-                      parseInt(assignTo, 10) === report?.assigned_to_id ? (
-                        <>
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                          </svg>
-                          Assigned to {report.assigned_to_name}
-                        </>
-                      ) : (
-                        <>
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                          </svg>
-                          Reassign Officer
-                        </>
-                      )
-                    ) : !assignTo ? (
-                      'Select an Officer'
-                    ) : (
-                      <>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                        </svg>
-                        Assign Officer
-                      </>
-                    )}
-                  </button>
-                </form>
-              </div>
-            );
-          })()}
-
+        </div>
+      </div>
     </div>
-  </div>
-</motion.div>
   );
 }
