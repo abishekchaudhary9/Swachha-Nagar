@@ -59,6 +59,13 @@ export default function Landing() {
             Report an Issue <span className="material-symbols-outlined text-sm">arrow_forward</span>
           </Link>
           <Link
+            to="/track"
+            className="bg-surface-container-highest text-primary rounded-full px-8 py-3 font-button text-button hover:bg-surface-variant transition-colors flex items-center justify-center gap-2"
+          >
+            <span className="material-symbols-outlined text-sm">history</span>
+            Track Your Report
+          </Link>
+          <Link
             to="/how-it-works"
             className="bg-surface-container-highest text-primary rounded-full px-8 py-3 font-button text-button hover:bg-surface-variant transition-colors"
           >

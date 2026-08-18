@@ -8,27 +8,27 @@ const { verifyToken, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
-// GET /api/analytics — admin + staff only
+// GET /api/analytics — all staff roles
 router.get(
   '/',
   verifyToken,
-  requireRole('admin', 'staff'),
+  requireRole('admin', 'field_officer', 'sanitation_worker'),
   getAnalytics
 );
 
-// GET /api/analytics/wards — admin + staff only
+// GET /api/analytics/wards — all staff roles
 router.get(
   '/wards',
   verifyToken,
-  requireRole('admin', 'staff'),
+  requireRole('admin', 'field_officer', 'sanitation_worker'),
   getWardAnalytics
 );
 
-// GET /api/analytics/hotspots — admin + staff only
+// GET /api/analytics/hotspots — all staff roles
 router.get(
   '/hotspots',
   verifyToken,
-  requireRole('admin', 'staff'),
+  requireRole('admin', 'field_officer', 'sanitation_worker'),
   getHotspots
 );
 

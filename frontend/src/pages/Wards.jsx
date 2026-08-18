@@ -12,6 +12,8 @@ const WARD_STATUS = w => {
   return { label: 'Critical', cls: 'bg-error-container text-on-error-container' };
 };
 
+const wardNumber = w => String(w.ward || '').replace(/ward\s*/i, '').trim();
+
 export default function Wards() {
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('sn_user') || 'null');
@@ -136,11 +138,11 @@ export default function Wards() {
                     >
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-primary-container text-on-primary flex items-center justify-center font-bold">
-                            {w.ward || '—'}
+                          <div className="w-10 h-10 rounded-lg bg-primary-container text-on-primary flex items-center justify-center font-bold text-sm">
+                            {wardNumber(w) || '—'}
                           </div>
                           <div>
-                            <p className="font-button text-button font-bold text-primary">Ward {w.ward || 'Unknown'}</p>
+                            <p className="font-button text-button font-bold text-primary">{w.ward ? `Ward ${wardNumber(w)}` : 'Unassigned'}</p>
                             <p className="font-label-caps text-label-caps text-on-surface-variant">{w.officer_name || 'No officer assigned'}</p>
                           </div>
                         </div>
@@ -165,7 +167,7 @@ export default function Wards() {
                         <div>
                           <p className="font-label-caps text-label-caps text-on-surface-variant uppercase">Avg Cleanup</p>
                           <p className="font-button text-button font-bold text-primary">
-                            {w.avg_resolution_hours != null ? `${w.avg_resolution_hours.toFixed(1)}h` : '—'}
+                            {w.avg_resolution_hours != null ? `${Number(w.avg_resolution_hours).toFixed(1)}h` : '—'}
                           </p>
                         </div>
                       </div>

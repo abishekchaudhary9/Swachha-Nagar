@@ -41,7 +41,7 @@ export default function StaffAnalytics() {
   const maxCategory = data ? Math.max(...data.reportsByCategory.map(c => c.count), 1) : 1;
   const totalCleanups = data?.statusBreakdown?.find(s => s.status === 'resolved')?.count || 1248;
   const avgHours = data?.avgResolutionHours != null ? Math.round(data.avgResolutionHours) : 22.5;
-  const openReports = data?.reportsByCategory?.reduce((acc, c) => acc + c.count, 0) || 143;
+  const openReports = data?.reportsByCategory?.reduce((acc, c) => acc + Number(c.count), 0) || 143;
 
   return (
     <div className="min-h-screen bg-background text-on-surface font-body-md">

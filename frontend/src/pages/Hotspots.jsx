@@ -90,7 +90,7 @@ export default function Hotspots() {
                 {[
                   { label: 'Active Hotspots', value: hotspots.length, icon: 'radar' },
                   { label: 'Rising Risk', value: hotspots.filter(h => h.trend === 'rising').length, icon: 'trending_up', tone: 'text-error' },
-                  { label: 'Avg Resolution Rate', value: `${Math.round(hotspots.reduce((a, h) => a + (h.resolution_rate || 0), 0) / Math.max(hotspots.length, 1))}%`, icon: 'check_circle', tone: 'text-tertiary-container' },
+                  { label: 'Avg Resolution Rate', value: `${Math.round(hotspots.reduce((a, h) => a + Number(h.resolution_rate || 0), 0) / Math.max(hotspots.length, 1))}%`, icon: 'check_circle', tone: 'text-tertiary-container' },
                 ].map(s => (
                   <div key={s.label} className="data-card p-stack-md">
                     <span className={`material-symbols-outlined text-[20px] ${s.tone || 'text-primary-container'}`} style={{ fontVariationSettings: "'FILL' 1" }}>{s.icon}</span>

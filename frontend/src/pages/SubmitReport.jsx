@@ -79,7 +79,7 @@ export default function SubmitReport() {
       });
 
       const res = await submitReport(formData);
-      navigate('/confirmation', { state: res.data.report });
+      navigate('/confirmation', { state: res.data });
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to submit report. Try again.');
     } finally {

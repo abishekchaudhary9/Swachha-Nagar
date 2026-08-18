@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { listReports, updateReportStatus } from '../services/api';
+import { listReports, updateReportStatus, assignReport, getStaffUsers } from '../services/api';
 import StaffSidebar from '../components/StaffSidebar';
 import StaffHeader from '../components/StaffHeader';
 import { StatusChip, PriorityDot, PRIORITY_OF_CATEGORY, relativeTime } from '../components/StatusChip';
@@ -10,6 +10,7 @@ const PAGE_SIZE = 15;
 
 export default function ReportCenter() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const user = JSON.parse(localStorage.getItem('sn_user') || 'null');
 
   const [reports,     setReports]     = useState([]);
@@ -18,7 +19,8 @@ export default function ReportCenter() {
   const [loading,     setLoading]     = useState(false);
   const [error,       setError]       = useState('');
   const [filters,     setFilters]     = useState({ status: '', category: '', ward: '' });
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
+  const [staffUsers,  setStaffUsers]  = useState([]);
 
   const fetchReports = useCallback(async () => {
     setLoading(true); setError('');
@@ -39,6 +41,27 @@ export default function ReportCenter() {
   }, [page, filters, navigate]);
 
   useEffect(() => { fetchReports(); }, [fetchReports]);
+
+  useEffect(() => {
+    if (user?.role === 'admin' || user?.role === 'field_officer') {
+      getStaffUsers()
+        .then(res => setStaffUsers(res.data.users || []))
+        .catch(() => setStaffUsers([]));
+    }
+  }, [user?.role]);
+
+  const canDispatch = user?.role === 'admin' || user?.role === 'field_officer';
+
+  const handleAssign = async (reportId, userId) => {
+    if (!userId) return;
+    try {
+      await assignReport(reportId, userId);
+      setError('');
+      fetchReports();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to assign report');
+    }
+  };
 
   const handleStatusChange = async (reportId, newStatus) => {
     try {
@@ -200,18 +223,35 @@ export default function ReportCenter() {
                         <td className="px-5 py-3 hidden lg:table-cell font-body-md text-body-md text-on-surface-variant">{r.assigned_to_name || 'Unassigned'}</td>
                         <td className="px-5 py-3 hidden lg:table-cell font-body-md text-body-md text-outline">{relativeTime(r.created_at)}</td>
                         <td className="px-5 py-3 text-right">
-                          <select
-                            value={r.status}
-                            onClick={e => e.stopPropagation()}
-                            onChange={e => handleStatusChange(r.id, e.target.value)}
-                            className="font-label-caps text-label-caps bg-surface-container-low border border-outline-variant rounded-lg px-2 py-1.5 text-primary cursor-pointer outline-none transition-all hover:border-tertiary-fixed-dim"
-                          >
-                            <option value="submitted">Submitted</option>
-                            <option value="acknowledged">Acknowledged</option>
-                            <option value="in_progress">In Progress</option>
-                            <option value="resolved">Resolved</option>
-                            <option value="closed">Closed</option>
-                          </select>
+                          <div className="flex items-center justify-end gap-2">
+                            {canDispatch && (
+                              <select
+                                value={r.assigned_to_id || ''}
+                                onClick={e => e.stopPropagation()}
+                                onChange={e => handleAssign(r.id, e.target.value)}
+                                className="font-label-caps text-label-caps bg-surface-container-low border border-outline-variant rounded-lg px-2 py-1.5 text-on-surface-variant cursor-pointer outline-none transition-all hover:border-tertiary-fixed-dim"
+                              >
+                                <option value="">Assign…</option>
+                                {staffUsers.map(o => (
+                                  <option key={o.id} value={o.id}>
+                                    {o.name} ({o.role.replace('_', ' ')})
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                            <select
+                              value={r.status}
+                              onClick={e => e.stopPropagation()}
+                              onChange={e => handleStatusChange(r.id, e.target.value)}
+                              className="font-label-caps text-label-caps bg-surface-container-low border border-outline-variant rounded-lg px-2 py-1.5 text-primary cursor-pointer outline-none transition-all hover:border-tertiary-fixed-dim"
+                            >
+                              <option value="submitted">Submitted</option>
+                              <option value="acknowledged">Acknowledged</option>
+                              <option value="in_progress">In Progress</option>
+                              <option value="resolved">Resolved</option>
+                              <option value="closed">Closed</option>
+                            </select>
+                          </div>
                         </td>
                       </tr>
                     ))}

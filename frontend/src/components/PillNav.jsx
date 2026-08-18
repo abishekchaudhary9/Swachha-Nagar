@@ -37,6 +37,13 @@ export default function PillNav() {
         </div>
         <div className="flex items-center gap-3">
           <Link
+            to="/track"
+            className="font-label-caps text-label-caps text-on-surface-variant dark:text-outline-variant hover:text-primary dark:hover:text-primary-fixed transition-all duration-200 hover:scale-95 flex items-center gap-1"
+          >
+            <span className="material-symbols-outlined text-[16px]">history</span>
+            Track Your Report
+          </Link>
+          <Link
             to="/staff/login"
             className="font-label-caps text-label-caps text-on-surface-variant dark:text-outline-variant hover:text-primary dark:hover:text-primary-fixed transition-all duration-200 hover:scale-95 flex items-center gap-1"
           >

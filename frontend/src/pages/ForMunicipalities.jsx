@@ -29,7 +29,14 @@ export default function ForMunicipalities() {
               Give your city a unified command center for waste management — live reporting, ward analytics, fleet tracking and citizen transparency in one platform.
             </p>
             <div className="flex flex-wrap gap-3 pt-2">
-              <Link to="/for-municipalities#contact" className="bg-primary-container text-on-primary font-button text-button px-8 py-3 rounded-lg hover:scale-95 shadow-md transition-transform">
+              <Link
+                to="/for-municipalities#contact"
+                onClick={e => {
+                  const el = document.getElementById('contact');
+                  if (el) { e.preventDefault(); el.scrollIntoView({ behavior: 'smooth' }); }
+                }}
+                className="bg-primary-container text-on-primary font-button text-button px-8 py-3 rounded-lg hover:scale-95 shadow-md transition-transform"
+              >
                 Request a Demo
               </Link>
               <Link to="/how-it-works" className="bg-white border border-outline-variant text-primary font-button text-button px-8 py-3 rounded-lg hover:bg-surface-container-low transition-colors">

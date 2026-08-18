@@ -67,11 +67,14 @@ export const listReports = (params = {}) =>
   api.get('/api/reports', { params });
 
 /** Staff — update report status (supports optional FormData for photo proof). */
-export const updateReportStatus = (id, data) => {
+export const updateReportStatus = (id, data, note = null) => {
   if (data instanceof FormData) {
     return api.patch(`/api/reports/${id}/status`, data, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
+  }
+  if (typeof data === 'string') {
+    return api.patch(`/api/reports/${id}/status`, { status: data, note });
   }
   return api.patch(`/api/reports/${id}/status`, data);
 };
@@ -79,6 +82,10 @@ export const updateReportStatus = (id, data) => {
 /** Staff — assign report to a field officer or worker. */
 export const assignReport = (id, assigned_to) =>
   api.patch(`/api/reports/${id}/assign`, { assigned_to });
+
+/** Admin/Officer — list staff users for assignment. */
+export const getStaffUsers = () =>
+  api.get('/api/auth/users');
 
 /** Citizen — dispute a resolved report if work was faked. */
 export const disputeReport = (trackingCode, reason) =>

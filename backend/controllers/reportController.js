@@ -247,7 +247,7 @@ async function listReports(req, res) {
   }
 
   // Sanitation Field Workers only see reports directly assigned to them
-  if (req.user.role === 'sanitation_worker' || req.user.role === 'staff') {
+  if (req.user.role === 'sanitation_worker') {
     conditions.push('r.assigned_to = ?');
     params.push(req.user.id);
   }

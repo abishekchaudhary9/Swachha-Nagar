@@ -142,7 +142,7 @@ export default function StaffDashboard() {
         )}
       </AnimatePresence>
 
-      <main className="md:pl-64 pt-20 flex flex-col lg:flex-row overflow-hidden">
+      <main className="md:pl-64 pt-20 flex flex-col lg:flex-row">
         {/* Left Panel */}
         <section className="w-full lg:w-[480px] xl:w-[520px] flex flex-col bg-surface-container-lowest/60 border-r border-outline-variant/30 shrink-0">
           {/* Stats Row */}
@@ -280,7 +280,7 @@ export default function StaffDashboard() {
         </section>
 
         {/* Right Panel - Real Map */}
-        <section className="flex-1 relative bg-surface-container hidden lg:block overflow-hidden">
+        <section className="flex-1 relative bg-surface-container hidden lg:block overflow-hidden lg:sticky lg:top-20 lg:h-[calc(100vh-5rem)]">
           {/* Floating Filter Bar */}
           <div className="absolute top-5 left-1/2 -translate-x-1/2 z-[500] flex items-center gap-1.5 bg-surface-container-lowest/90 backdrop-blur-xl p-1.5 rounded-full shadow-xl border border-outline-variant/40">
             {['ALL', 'SUBMITTED', 'ACKNOWLEDGED', 'IN_PROGRESS', 'RESOLVED'].map(st => (

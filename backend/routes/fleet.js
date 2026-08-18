@@ -4,11 +4,11 @@ const { verifyToken, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
-// GET /api/fleet — admin + staff only
+// GET /api/fleet — all staff roles
 router.get(
   '/',
   verifyToken,
-  requireRole('admin', 'staff', 'field_officer'),
+  requireRole('admin', 'field_officer', 'sanitation_worker'),
   getFleet
 );
 

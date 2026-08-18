@@ -9,7 +9,6 @@ const ROLE_CONFIG = {
   admin:             { label: 'System Admin',    cls: 'bg-primary-container text-on-primary' },
   field_officer:     { label: 'Ward Officer',    cls: 'bg-tertiary-fixed-dim/25 text-tertiary-container' },
   sanitation_worker: { label: 'Field Staff',     cls: 'bg-secondary-container text-on-secondary-container' },
-  staff:             { label: 'Staff',           cls: 'bg-surface-container-high text-on-surface-variant' },
 };
 
 export default function UserManagement() {
@@ -118,7 +117,7 @@ export default function UserManagement() {
   });
 
   const getRoleBadge = (role) => {
-    const cfg = ROLE_CONFIG[role] || ROLE_CONFIG.staff;
+    const cfg = ROLE_CONFIG[role] || ROLE_CONFIG.sanitation_worker;
     return (
       <span className={`${cfg.cls} font-label-caps text-label-caps font-semibold px-2.5 py-1 rounded-full w-max`}>
         {cfg.label}
@@ -242,7 +241,6 @@ export default function UserManagement() {
                 <option value="admin">System Admin</option>
                 <option value="field_officer">Ward Officer</option>
                 <option value="sanitation_worker">Field Staff</option>
-                <option value="staff">Staff</option>
               </select>
             </div>
           </div>

@@ -8,7 +8,7 @@ const router = express.Router();
 router.post('/login', login);
 
 // Admin-only user management routes
-router.get('/users', verifyToken, requireRole('admin'), getUsers);
+router.get('/users', verifyToken, requireRole('admin', 'field_officer'), getUsers);
 router.post('/users', verifyToken, requireRole('admin'), createUser);
 router.put('/users/:id', verifyToken, requireRole('admin'), updateUser);
 router.delete('/users/:id', verifyToken, requireRole('admin'), deleteUser);

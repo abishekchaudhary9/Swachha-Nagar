@@ -62,7 +62,11 @@ app.use((_req, res) => {
 // eslint-disable-next-line no-unused-vars
 app.use((err, _req, res, _next) => {
   console.error('[Unhandled error]', err);
-  res.status(500).json({ error: 'Internal server error' });
+  const status = err.status || err.statusCode || 500;
+  if (status >= 500) {
+    return res.status(status).json({ error: 'Internal server error' });
+  }
+  return res.status(status).json({ error: err.message || 'Bad request' });
 });
 
 // ─── Start ────────────────────────────────────────────────────────────────────

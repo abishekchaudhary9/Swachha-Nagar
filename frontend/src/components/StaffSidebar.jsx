@@ -58,13 +58,15 @@ export default function StaffSidebar({ user }) {
       </nav>
 
       <div className="mt-auto space-y-4">
-        <Link
-          to="/staff/reports"
-          className="w-full bg-primary-container text-on-primary py-2 px-4 rounded-lg font-button text-button hover:bg-[#093027] transition-colors shadow-sm flex items-center justify-center gap-2"
-        >
-          <span className="material-symbols-outlined text-[18px]">send</span>
-          Dispatch Crew
-        </Link>
+        {(user?.role === 'admin' || user?.role === 'field_officer') && (
+          <Link
+            to="/staff/reports"
+            className="w-full bg-primary-container text-on-primary py-2 px-4 rounded-lg font-button text-button hover:bg-[#093027] transition-colors shadow-sm flex items-center justify-center gap-2"
+          >
+            <span className="material-symbols-outlined text-[18px]">send</span>
+            Dispatch Crew
+          </Link>
+        )}
         <div className="space-y-1 pt-4 border-t border-outline-variant/20">
           <Link to="/" className="flex items-center gap-3 px-3 py-2 text-on-secondary-fixed-variant hover:bg-surface-container-high transition-all active:translate-x-1 duration-150 rounded-lg">
             <span className="material-symbols-outlined">public</span>
