@@ -67,11 +67,13 @@ export default function StaffDashboard() {
   useEffect(() => { fetchReports(); }, [fetchReports]);
 
   useEffect(() => {
+    const token = localStorage.getItem('sn_token');
+    if (!token) return undefined;
     const wsProto = window.location.protocol === 'https:' ? 'wss' : 'ws';
     const wsUrl = `${wsProto}://${window.location.hostname}${window.location.port ? `:${window.location.port}` : ':5000'}`;
     let socket;
     try {
-      socket = new WebSocket(wsUrl);
+      socket = new WebSocket(wsUrl, ['bearer', token]);
       socket.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);

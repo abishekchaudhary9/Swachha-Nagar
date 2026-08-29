@@ -27,6 +27,7 @@ export default function SubmitReport() {
   const [photo,        setPhoto]        = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
   const [gpsStatus, setGpsStatus] = useState('idle');
+  const [gpsMessage, setGpsMessage] = useState('');
   const [error,     setError]     = useState('');
   const [loading,   setLoading]   = useState(false);
 
@@ -35,9 +36,17 @@ export default function SubmitReport() {
   }, []);
 
   const captureGps = () => {
+    setError('');
+    setGpsMessage('');
     setGpsStatus('fetching');
     if (!navigator.geolocation) {
       setGpsStatus('error');
+      setGpsMessage('This browser does not support location services. Enter coordinates manually.');
+      return;
+    }
+    if (!window.isSecureContext) {
+      setGpsStatus('error');
+      setGpsMessage('Location requires HTTPS on mobile. Open this site using its HTTPS address, then try again.');
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -45,8 +54,16 @@ export default function SubmitReport() {
         setForm(f => ({ ...f, latitude: coords.latitude.toFixed(6), longitude: coords.longitude.toFixed(6) }));
         setGpsStatus('ok');
       },
-      () => setGpsStatus('error'),
-      { enableHighAccuracy: true, timeout: 10000 }
+      (positionError) => {
+        setGpsStatus('error');
+        const messages = {
+          1: 'Location permission was denied. Allow location access in your browser settings, then retry.',
+          2: 'Your location is currently unavailable. Check that GPS/location services are enabled, then retry.',
+          3: 'Location lookup timed out. Move to an area with better signal and retry.',
+        };
+        setGpsMessage(messages[positionError.code] || 'Unable to determine your location. Enter coordinates manually or retry.');
+      },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 }
     );
   };
 
@@ -69,6 +86,11 @@ export default function SubmitReport() {
     setError('');
     if (!photo) return setError('Photo evidence is required to submit a report.');
     if (!form.category) return setError('Please select a waste category.');
+    const latitude = Number(form.latitude);
+    const longitude = Number(form.longitude);
+    if (!form.latitude.trim() || !form.longitude.trim() || !Number.isFinite(latitude) || !Number.isFinite(longitude) || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+      return setError('Capture your GPS location or enter valid latitude and longitude before submitting.');
+    }
 
     setLoading(true);
     try {
@@ -79,7 +101,10 @@ export default function SubmitReport() {
       });
 
       const res = await submitReport(formData);
-      navigate('/confirmation', { state: res.data });
+      const trackingCode = res.data?.tracking_code;
+      if (!trackingCode) throw new Error('The server did not return a tracking code.');
+      sessionStorage.setItem('sn_last_tracking_code', trackingCode);
+      navigate(`/confirmation?code=${encodeURIComponent(trackingCode)}`, { state: res.data });
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to submit report. Try again.');
     } finally {
@@ -151,7 +176,7 @@ export default function SubmitReport() {
 
                 {gpsStatus === 'error' && (
                   <div className="space-y-stack-sm">
-                    <p className="font-body-md text-body-md text-on-surface-variant">GPS unavailable. Enter coordinates manually or provide your ward below.</p>
+                    <p className="font-body-md text-body-md text-on-surface-variant">{gpsMessage || 'GPS unavailable. Enter coordinates manually or provide your ward below.'}</p>
                     <div className="grid grid-cols-2 gap-stack-sm">
                       <input name="latitude" value={form.latitude} onChange={handleChange} className="w-full h-10 rounded-lg border border-outline-variant bg-surface px-stack-md font-body-md text-body-md" placeholder="Latitude" type="number" step="any" />
                       <input name="longitude" value={form.longitude} onChange={handleChange} className="w-full h-10 rounded-lg border border-outline-variant bg-surface px-stack-md font-body-md text-body-md" placeholder="Longitude" type="number" step="any" />
@@ -180,7 +205,7 @@ export default function SubmitReport() {
                   <h3 className="font-label-caps text-label-caps text-on-surface uppercase tracking-wider font-semibold">Photo Upload</h3>
                 </div>
                 <div className="relative group cursor-pointer">
-                  <input accept="image/*" className="absolute inset-0 opacity-0 z-10 cursor-pointer" type="file" onChange={handlePhotoChange} />
+                  <input accept="image/*" capture="environment" className="absolute inset-0 opacity-0 z-10 cursor-pointer" type="file" onChange={handlePhotoChange} />
                   {photoPreview ? (
                     <div className="relative w-full aspect-video rounded-xl overflow-hidden border border-primary">
                       <img src={photoPreview} alt="Selected photo" className="w-full h-full object-cover" />

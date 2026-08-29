@@ -23,6 +23,17 @@
   body {
     margin: 0;
     min-height: 100dvh;
+    overflow-x: clip;
+  }
+
+  #root {
+    min-height: 100dvh;
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
+  img, svg, video, canvas {
+    max-width: 100%;
   }
 
   h1, h2, h3, h4, h5, h6, .font-display, .font-headline {
@@ -336,4 +347,27 @@
 
 button, a[class*="btn"] {
   transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease, opacity 0.15s ease;
+}
+
+/* Phone-first safeguards for every route, including dense staff screens. */
+@media (max-width: 767px) {
+  main[class*="md:pl-64"] {
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+  }
+
+  input, select, textarea, button {
+    max-width: 100%;
+  }
+
+  input, select, textarea {
+    font-size: 16px; /* prevents iOS from zooming focused form fields */
+  }
+
+  table {
+    min-width: 100%;
+  }
+
+  .leaflet-container {
+    max-width: 100%;
+  }
 }

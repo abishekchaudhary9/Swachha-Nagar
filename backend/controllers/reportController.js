@@ -4,10 +4,18 @@ const exifParser              = require('exif-parser');
 const { pool }                = require('../config/db');
 const { sendStatusChangeEmail } = require('../utils/email');
 const { broadcastEvent }        = require('../utils/websocket');
+const { removeUploadedFile }    = require('../middleware/uploadValidation');
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const VALID_CATEGORIES = ['organic', 'plastic', 'e_waste', 'construction', 'other'];
 const VALID_STATUSES   = ['submitted', 'acknowledged', 'in_progress', 'resolved', 'closed'];
+const STATUS_TRANSITIONS = {
+  submitted: ['acknowledged'],
+  acknowledged: ['in_progress'],
+  in_progress: ['resolved'],
+  resolved: ['closed'],
+  closed: [],
+};
 
 // Duplicate detection: same location within DEDUP_RADIUS metres + DEDUP_WINDOW minutes
 const DEDUP_RADIUS = 50;     // metres
@@ -15,7 +23,21 @@ const DEDUP_WINDOW = 10;     // minutes
 
 /** Generates a short, URL-safe uppercase tracking code, e.g. "A3F9X2" */
 function generateTrackingCode() {
-  return crypto.randomBytes(4).toString('hex').toUpperCase().slice(0, 8);
+  return crypto.randomBytes(6).toString('hex').toUpperCase();
+}
+
+function normaliseWard(ward) {
+  return String(ward || '').replace(/^ward\s*/i, '').trim().toLowerCase();
+}
+
+function canAccessReport(user, report) {
+  if (user.role === 'admin') return true;
+  if (user.role === 'sanitation_worker') return Number(report.assigned_to) === Number(user.id);
+  return user.role === 'field_officer' && normaliseWard(user.ward) && normaliseWard(user.ward) === normaliseWard(report.ward);
+}
+
+function validTrackingCode(code) {
+  return /^(?:[A-F0-9]{8}|[A-F0-9]{12}|SN-\d{6})$/.test(String(code).toUpperCase());
 }
 
 // ─── POST /api/reports ────────────────────────────────────────────────────────
@@ -30,6 +52,7 @@ async function submitReport(req, res) {
 
   // ── Validate category (enum only, never free text)
   if (!category || !VALID_CATEGORIES.includes(category)) {
+    removeUploadedFile(req.file);
     return res.status(400).json({
       error: `category must be one of: ${VALID_CATEGORIES.join(', ')}`,
     });
@@ -39,15 +62,22 @@ async function submitReport(req, res) {
   let lat = parseFloat(latitude);
   let lng = parseFloat(longitude);
   if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    removeUploadedFile(req.file);
     return res.status(400).json({ error: 'Valid latitude and longitude are required' });
   }
 
   // ── Validate email if provided
   if (reporter_email) {
     const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRe.test(reporter_email)) {
+    if (typeof reporter_email !== 'string' || reporter_email.length > 191 || !emailRe.test(reporter_email)) {
+      removeUploadedFile(req.file);
       return res.status(400).json({ error: 'Invalid reporter_email format' });
     }
+  }
+  if ((description && (typeof description !== 'string' || description.length > 5000)) ||
+      (ward && (typeof ward !== 'string' || ward.length > 60))) {
+    removeUploadedFile(req.file);
+    return res.status(400).json({ error: 'Description or ward is too long' });
   }
 
   // ── Photo processing & EXIF extraction
@@ -80,6 +110,7 @@ async function submitReport(req, res) {
     );
 
     if (dupes.length > 0) {
+      removeUploadedFile(req.file);
       return res.status(409).json({
         error: `A report for this location was already submitted in the last ${DEDUP_WINDOW} minutes.`,
       });
@@ -158,6 +189,7 @@ async function submitReport(req, res) {
       tracking_code: trackingCode,
     });
   } catch (err) {
+    removeUploadedFile(req.file);
     console.error('[reportController.submitReport]', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
@@ -167,6 +199,7 @@ async function submitReport(req, res) {
 /** Public — citizen tracks their own report. */
 async function trackReport(req, res) {
   const { trackingCode } = req.params;
+  if (!validTrackingCode(trackingCode)) return res.status(404).json({ error: 'Report not found' });
 
   try {
     const [rows] = await pool.query(
@@ -253,7 +286,12 @@ async function listReports(req, res) {
   }
 
   const where  = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-  const offset = (parseInt(page, 10) - 1) * parseInt(limit, 10);
+  const pageNumber = Number.parseInt(page, 10);
+  const limitNumber = Number.parseInt(limit, 10);
+  if (!Number.isSafeInteger(pageNumber) || pageNumber < 1 || !Number.isSafeInteger(limitNumber) || limitNumber < 1 || limitNumber > 100) {
+    return res.status(400).json({ error: 'page must be positive and limit must be between 1 and 100' });
+  }
+  const offset = (pageNumber - 1) * limitNumber;
 
   try {
     const [[{ total }]] = await pool.query(
@@ -274,10 +312,10 @@ async function listReports(req, res) {
        ${where}
        ORDER BY r.created_at DESC
        LIMIT ? OFFSET ?`,
-      [...params, parseInt(limit, 10), offset]
+      [...params, limitNumber, offset]
     );
 
-    return res.json({ total, page: parseInt(page, 10), limit: parseInt(limit, 10), reports: rows });
+    return res.json({ total, page: pageNumber, limit: limitNumber, reports: rows });
   } catch (err) {
     console.error('[reportController.listReports]', err);
     return res.status(500).json({ error: 'Internal server error' });
@@ -290,20 +328,36 @@ async function updateStatus(req, res) {
   const { id }     = req.params;
   const { status, note } = req.body;
 
-  if (!status || !VALID_STATUSES.includes(status)) {
+  if (!/^\d+$/.test(id) || !status || !VALID_STATUSES.includes(status)) {
+    removeUploadedFile(req.file);
     return res.status(400).json({
       error: `status must be one of: ${VALID_STATUSES.join(', ')}`,
     });
   }
+  if (note !== undefined && (typeof note !== 'string' || note.length > 2000)) {
+    removeUploadedFile(req.file);
+    return res.status(400).json({ error: 'Note must be at most 2000 characters' });
+  }
 
   try {
     const [rows] = await pool.query(
-      'SELECT id, tracking_code, reporter_email, status, resolution_photo_path FROM reports WHERE id = ?',
+      'SELECT id, tracking_code, reporter_email, status, resolution_photo_path, ward, assigned_to FROM reports WHERE id = ?',
       [id]
     );
-    if (rows.length === 0) return res.status(404).json({ error: 'Report not found' });
+    if (rows.length === 0) {
+      removeUploadedFile(req.file);
+      return res.status(404).json({ error: 'Report not found' });
+    }
 
     const report = rows[0];
+    if (!canAccessReport(req.user, report)) {
+      removeUploadedFile(req.file);
+      return res.status(403).json({ error: 'You are not allowed to update this report' });
+    }
+    if (!STATUS_TRANSITIONS[report.status].includes(status)) {
+      removeUploadedFile(req.file);
+      return res.status(400).json({ error: `Cannot change status from ${report.status} to ${status}` });
+    }
 
     // Mandatory Resolution Photo check when status is being set to 'resolved'
     let resolutionPhotoPath = report.resolution_photo_path;
@@ -356,24 +410,28 @@ async function disputeReport(req, res) {
   const { trackingCode } = req.params;
   const { reason }       = req.body;
 
-  if (!reason || !reason.trim()) {
+  if (!validTrackingCode(trackingCode) || typeof reason !== 'string' || !reason.trim() || reason.trim().length > 2000) {
     return res.status(400).json({ error: 'Dispute reason is required' });
   }
 
   try {
     const [rows] = await pool.query(
-      'SELECT id, status FROM reports WHERE tracking_code = ?',
+      'SELECT id, status, reporter_email, tracking_code FROM reports WHERE tracking_code = ?',
       [trackingCode.toUpperCase()]
     );
 
     if (rows.length === 0) return res.status(404).json({ error: 'Report not found' });
     const report = rows[0];
+    if (report.status !== 'resolved') return res.status(400).json({ error: 'Only resolved reports can be disputed' });
 
     // Transition back to in_progress & mark is_disputed = true
     await pool.query(
       'UPDATE reports SET status = "in_progress", is_disputed = TRUE, dispute_reason = ? WHERE id = ?',
       [reason.trim(), report.id]
     );
+
+    sendStatusChangeEmail(report.reporter_email, report.tracking_code, 'in_progress', `CITIZEN DISPUTE: ${reason.trim()}`)
+      .catch(e => console.error('[email]', e.message));
 
     await pool.query(
       `INSERT INTO report_status_history (report_id, status, changed_by, note)
@@ -396,14 +454,14 @@ async function assignReport(req, res) {
   const { id }         = req.params;
   const { assigned_to } = req.body;
 
-  if (!assigned_to) {
+  if (!/^\d+$/.test(id) || !Number.isSafeInteger(Number(assigned_to)) || Number(assigned_to) < 1) {
     return res.status(400).json({ error: 'assigned_to (staff user id) is required' });
   }
 
   try {
     // Verify the target user exists and is a field_officer
     const [users] = await pool.query(
-      'SELECT id, name, role FROM staff_users WHERE id = ?',
+      'SELECT id, name, role, ward FROM staff_users WHERE id = ?',
       [assigned_to]
     );
     if (users.length === 0) {
@@ -417,8 +475,14 @@ async function assignReport(req, res) {
     }
 
     // Check current report status
-    const [reports] = await pool.query('SELECT status FROM reports WHERE id = ?', [id]);
-    const currentStatus = reports[0]?.status;
+    const [reports] = await pool.query('SELECT status, ward, assigned_to FROM reports WHERE id = ?', [id]);
+    if (reports.length === 0) return res.status(404).json({ error: 'Report not found' });
+    const currentReport = reports[0];
+    if (!canAccessReport(req.user, currentReport)) return res.status(403).json({ error: 'You are not allowed to assign this report' });
+    if (req.user.role === 'field_officer' && normaliseWard(users[0].ward) !== normaliseWard(req.user.ward)) {
+      return res.status(400).json({ error: 'Ward Officers can only assign staff from their own ward' });
+    }
+    const currentStatus = currentReport.status;
 
     // Update assignment
     await pool.query(

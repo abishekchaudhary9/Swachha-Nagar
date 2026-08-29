@@ -133,7 +133,7 @@ export default function UserManagement() {
   };
 
   const inputCls = "w-full py-2.5 px-3 bg-surface-container-low rounded-xl border border-outline-variant/60 focus:border-tertiary-fixed-dim focus:ring-2 focus:ring-tertiary-fixed-dim/20 outline-none transition-all font-body-md text-body-md";
-  const modalCls = "bg-surface-container-lowest rounded-2xl shadow-xl border border-outline-variant/30 max-w-md w-full p-stack-lg space-y-stack-md";
+  const modalCls = "bg-surface-container-lowest rounded-2xl shadow-xl border border-outline-variant/30 max-w-md w-full max-h-[calc(100dvh-2rem)] overflow-y-auto p-stack-lg space-y-stack-md";
 
   return (
     <div className="min-h-screen bg-background text-on-surface font-body-md">
@@ -348,7 +348,7 @@ export default function UserManagement() {
                   </button>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-label-caps text-label-caps font-semibold text-on-surface-variant mb-1">Role</label>
                   <select value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value })} className={inputCls}>
@@ -361,9 +361,9 @@ export default function UserManagement() {
                   <input type="text" placeholder="e.g. Ward 4" value={formData.ward} onChange={e => setFormData({ ...formData, ward: e.target.value })} className={inputCls} />
                 </div>
               </div>
-              <div className="flex justify-end gap-3 border-t border-outline-variant/30 pt-4">
-                <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 font-button text-button text-on-surface-variant hover:bg-surface-container rounded-xl transition">Cancel</button>
-                <button type="submit" className="px-4 py-2 font-button text-button bg-primary-container hover:bg-primary text-on-primary font-semibold rounded-xl shadow-md transition">Create Staff User</button>
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 border-t border-outline-variant/30 pt-4">
+                <button type="button" onClick={() => setShowCreateModal(false)} className="w-full sm:w-auto px-4 py-2 font-button text-button text-on-surface-variant hover:bg-surface-container rounded-xl transition">Cancel</button>
+                <button type="submit" className="w-full sm:w-auto px-4 py-2 font-button text-button bg-primary-container hover:bg-primary text-on-primary font-semibold rounded-xl shadow-md transition">Create Staff User</button>
               </div>
             </form>
           </div>
@@ -388,7 +388,7 @@ export default function UserManagement() {
                 <label className="block font-label-caps text-label-caps font-semibold text-on-surface-variant mb-1">Full Name</label>
                 <input type="text" required value={editData.name} onChange={e => setEditData({ ...editData, name: e.target.value })} className={inputCls} />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-label-caps text-label-caps font-semibold text-on-surface-variant mb-1">Role</label>
                   <select value={editData.role} onChange={e => setEditData({ ...editData, role: e.target.value })} className={inputCls}>
@@ -401,9 +401,9 @@ export default function UserManagement() {
                   <input type="text" placeholder="e.g. Ward 4" value={editData.ward} onChange={e => setEditData({ ...editData, ward: e.target.value })} className={inputCls} />
                 </div>
               </div>
-              <div className="flex justify-end gap-3 border-t border-outline-variant/30 pt-4">
-                <button type="button" onClick={() => setShowEditModal(false)} className="px-4 py-2 font-button text-button text-on-surface-variant hover:bg-surface-container rounded-xl transition">Cancel</button>
-                <button type="submit" className="px-4 py-2 font-button text-button bg-primary-container hover:bg-primary text-on-primary font-semibold rounded-xl shadow-md transition">Save Changes</button>
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 border-t border-outline-variant/30 pt-4">
+                <button type="button" onClick={() => setShowEditModal(false)} className="w-full sm:w-auto px-4 py-2 font-button text-button text-on-surface-variant hover:bg-surface-container rounded-xl transition">Cancel</button>
+                <button type="submit" className="w-full sm:w-auto px-4 py-2 font-button text-button bg-primary-container hover:bg-primary text-on-primary font-semibold rounded-xl shadow-md transition">Save Changes</button>
               </div>
             </form>
           </div>

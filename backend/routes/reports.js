@@ -11,6 +11,7 @@ const {
 } = require('../controllers/reportController');
 const { verifyToken, requireRole } = require('../middleware/auth');
 const { reportSubmissionLimiter, trackReportLimiter } = require('../middleware/rateLimiter');
+const { validateImageUpload } = require('../middleware/uploadValidation');
 
 const router = express.Router();
 
@@ -25,8 +26,12 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (_req, file, cb) => {
-  const allowed = /jpeg|jpg|png|webp|heic/;
-  cb(null, allowed.test(path.extname(file.originalname).toLowerCase()));
+  const extension = path.extname(file.originalname).toLowerCase();
+  const allowed = { '.jpg': ['image/jpeg'], '.jpeg': ['image/jpeg'], '.png': ['image/png'], '.webp': ['image/webp'], '.heic': ['image/heic', 'image/heif'] };
+  if (!allowed[extension] || !allowed[extension].includes(file.mimetype)) {
+    return cb(new multer.MulterError('LIMIT_UNEXPECTED_FILE', 'photo'));
+  }
+  return cb(null, true);
 };
 
 const upload = multer({
@@ -38,7 +43,7 @@ const upload = multer({
 // ─── Routes ──────────────────────────────────────────────────────────────────
 
 // Public — citizen submit (rate limited, 5 per 15 min per IP)
-router.post('/', reportSubmissionLimiter, upload.single('photo'), submitReport);
+router.post('/', reportSubmissionLimiter, upload.single('photo'), validateImageUpload, submitReport);
 
 // Public — citizen track by tracking code (rate limited, 30 per 15 min per IP)
 router.get('/track/:trackingCode', trackReportLimiter, trackReport);
@@ -60,6 +65,7 @@ router.patch(
   verifyToken,
   requireRole('admin', 'field_officer', 'sanitation_worker'),
   upload.single('resolution_photo'),
+  validateImageUpload,
   updateStatus
 );
 

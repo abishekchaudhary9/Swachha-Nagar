@@ -100,9 +100,9 @@ export default function ReportDetailPanel() {
   const currentStepIdx = STATUS_STEPS.indexOf(report?.status || 'submitted');
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-stack-md md:p-stack-lg font-body-md">
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-2 sm:p-stack-md md:p-stack-lg font-body-md">
       {/* Report Detail Panel Modal */}
-      <div className="bg-surface-container-lowest w-full max-w-5xl max-h-[90vh] rounded-xl shadow-2xl flex flex-col md:flex-row overflow-hidden border border-outline-variant relative animate-fade-in">
+      <div className="bg-surface-container-lowest w-full max-w-5xl max-h-[calc(100dvh-1rem)] md:max-h-[90vh] rounded-xl shadow-2xl flex flex-col md:flex-row overflow-y-auto md:overflow-hidden border border-outline-variant relative animate-fade-in">
         {/* Close Button */}
         <button
           onClick={() => navigate('/staff/dashboard')}
@@ -112,7 +112,7 @@ export default function ReportDetailPanel() {
         </button>
 
         {/* Left Column: Visuals & Core Info */}
-        <div className="w-full md:w-5/12 bg-surface-container-low border-r border-outline-variant flex flex-col overflow-y-auto custom-scrollbar">
+        <div className="w-full md:w-5/12 bg-surface-container-low border-b md:border-b-0 md:border-r border-outline-variant flex flex-col md:overflow-y-auto custom-scrollbar shrink-0">
           {/* Main Image */}
           <div className="w-full aspect-[4/3] bg-surface-dim relative group overflow-hidden">
             <img
@@ -234,7 +234,7 @@ export default function ReportDetailPanel() {
         </div>
 
         {/* Right Column: Operations & Workflow */}
-        <div className="w-full md:w-7/12 flex flex-col h-full overflow-y-auto custom-scrollbar">
+        <div className="w-full md:w-7/12 flex flex-col h-full md:overflow-y-auto custom-scrollbar">
           {/* Header Actions */}
           <div className="p-stack-lg border-b border-outline-variant flex flex-wrap gap-stack-md items-center justify-between sticky top-0 bg-surface-container-lowest z-10">
             <div>
@@ -357,17 +357,17 @@ export default function ReportDetailPanel() {
             </div>
 
             {/* Final Action Row */}
-            <div className="flex justify-end gap-stack-md pt-stack-lg border-t border-outline-variant">
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-stack-md pt-stack-lg border-t border-outline-variant">
               <button
                 onClick={() => navigate('/staff/dashboard')}
-                className="px-stack-lg py-stack-md text-secondary font-button text-button hover:bg-secondary/5 rounded-lg border border-secondary font-semibold"
+                className="w-full sm:w-auto px-stack-lg py-stack-md text-secondary font-button text-button hover:bg-secondary/5 rounded-lg border border-secondary font-semibold"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveChanges}
                 disabled={saving}
-                className="px-stack-lg py-stack-md bg-primary-container text-on-primary font-button text-button rounded-lg shadow-md hover:opacity-90 active:scale-[0.98] transition-all font-bold disabled:opacity-50"
+                className="w-full sm:w-auto px-stack-lg py-stack-md bg-primary-container text-on-primary font-button text-button rounded-lg shadow-md hover:opacity-90 active:scale-[0.98] transition-all font-bold disabled:opacity-50"
               >
                 {saving ? 'Saving...' : 'Save Changes'}
               </button>

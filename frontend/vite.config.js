@@ -7,6 +7,9 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
+    // Phones require a secure context for navigator.geolocation. The basicSsl
+    // plugin above supplies a local development certificate for LAN testing.
+    https: true,
     // Proxy API calls to backend in dev (avoids CORS issues)
     proxy: {
       '/api': {

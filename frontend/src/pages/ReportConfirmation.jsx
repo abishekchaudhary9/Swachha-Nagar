@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useLocation, useNavigate, Link } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 
 const LOGO_URL = "https://lh3.googleusercontent.com/aida/AP1WRLvqEeSNx1XairIMzMTuD1Ix3vDKfZJs7-YfgEEPNl2vV2qBzNwK_90H6awnWo0iV_bzKZrzsBPq3Tv4gEr0rWvA3sIHns9dGPYnSzCpCQlzKmbZv0Fy8F9lkUnrfuvbR34Z-KzQBLco3clLLW46ds-c6I34B9njMqJQXNIcT7clHLgKM_5MjunTbA3Cq3_QwpVPnrq69gqyWpvx5LHurPYqkXSlCHozCGCkNqYfsUhZWFOY0h66yfgxdUg";
@@ -7,21 +7,22 @@ const LOGO_URL = "https://lh3.googleusercontent.com/aida/AP1WRLvqEeSNx1XairIMzMT
 export default function ReportConfirmation() {
   const navigate = useNavigate();
   const { state } = useLocation();
+  const [searchParams] = useSearchParams();
+  const trackingCode = state?.tracking_code || searchParams.get('code') || sessionStorage.getItem('sn_last_tracking_code') || '';
 
   useEffect(() => {
-    if (!state?.tracking_code) navigate('/', { replace: true });
-  }, [state, navigate]);
-
-  const trackingCode = state?.tracking_code || '';
+    if (!trackingCode) navigate('/submit', { replace: true });
+  }, [trackingCode, navigate]);
   const [copied, setCopied] = useState(false);
 
   if (!trackingCode) return null;
 
   const copyTrackingCode = () => {
+    if (!navigator.clipboard) return;
     navigator.clipboard.writeText(trackingCode).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    });
+    }).catch(() => {});
   };
 
   return (

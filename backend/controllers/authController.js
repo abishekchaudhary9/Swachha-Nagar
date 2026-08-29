@@ -2,6 +2,14 @@ const bcrypt  = require('bcryptjs');
 const jwt      = require('jsonwebtoken');
 const { pool } = require('../config/db');
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PASSWORD_MIN_LENGTH = 12;
+const INSECURE_DEMO_EMAILS = new Set([
+  'admin@swachhanagar.com',
+  'staff@swachhanagar.com',
+  'officer@swachhanagar.com',
+]);
+
 /**
  * POST /api/auth/login
  * Body: { email, password }
@@ -10,7 +18,7 @@ const { pool } = require('../config/db');
 async function login(req, res) {
   const { email, password } = req.body;
 
-  if (!email || !password) {
+  if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) {
     return res.status(400).json({ error: 'email and password are required' });
   }
 
@@ -25,6 +33,9 @@ async function login(req, res) {
     }
 
     const user = rows[0];
+    if (process.env.NODE_ENV === 'production' && INSECURE_DEMO_EMAILS.has(user.email.toLowerCase())) {
+      return res.status(403).json({ error: 'This demo account is disabled in production' });
+    }
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) {
       return res.status(401).json({ error: 'Invalid credentials' });
@@ -81,13 +92,19 @@ async function getUsers(req, res) {
 async function createUser(req, res) {
   const { name, email, password, role, ward } = req.body;
 
-  if (!name || !email || !password || !role) {
+  if (typeof name !== 'string' || typeof email !== 'string' || typeof password !== 'string' || !name || !email || !password || !role) {
     return res.status(400).json({ error: 'Name, email, password, and role are required' });
   }
 
   const validRoles = ['field_officer', 'sanitation_worker'];
   if (!validRoles.includes(role)) {
     return res.status(400).json({ error: `Role must be one of: ${validRoles.join(', ')}` });
+  }
+  if (!EMAIL_RE.test(email) || email.length > 191 || name.trim().length > 120 || (ward && (typeof ward !== 'string' || ward.length > 60))) {
+    return res.status(400).json({ error: 'Invalid name, email, or ward' });
+  }
+  if (password.length < PASSWORD_MIN_LENGTH) {
+    return res.status(400).json({ error: `Password must be at least ${PASSWORD_MIN_LENGTH} characters long` });
   }
 
   try {
@@ -131,13 +148,17 @@ async function updateUser(req, res) {
   const { id } = req.params;
   const { name, role, ward } = req.body;
 
-  if (parseInt(id, 10) === req.user.id) {
+  if (!/^\d+$/.test(id) || parseInt(id, 10) === req.user.id) {
     return res.status(400).json({ error: 'You cannot modify your own account from here' });
   }
 
   const validRoles = ['field_officer', 'sanitation_worker'];
   if (role && !validRoles.includes(role)) {
     return res.status(400).json({ error: `Role must be one of: ${validRoles.join(', ')}` });
+  }
+  if ((name !== undefined && (typeof name !== 'string' || !name.trim() || name.trim().length > 120)) ||
+      (ward !== undefined && ward !== null && (typeof ward !== 'string' || ward.length > 60))) {
+    return res.status(400).json({ error: 'Invalid name or ward' });
   }
 
   try {
@@ -178,7 +199,7 @@ async function updateUser(req, res) {
 async function deleteUser(req, res) {
   const { id } = req.params;
 
-  if (parseInt(id, 10) === req.user.id) {
+  if (!/^\d+$/.test(id) || parseInt(id, 10) === req.user.id) {
     return res.status(400).json({ error: 'You cannot delete your own account' });
   }
 
@@ -195,4 +216,3 @@ async function deleteUser(req, res) {
 }
 
 module.exports = { login, getUsers, createUser, updateUser, deleteUser };
-

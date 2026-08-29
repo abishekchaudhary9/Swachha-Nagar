@@ -16,7 +16,7 @@ export default function PillNav() {
   return (
     <>
       {/* Desktop floating pill nav */}
-      <nav className="fixed top-4 left-1/2 -translate-x-1/2 w-[90%] max-w-container-max rounded-full border border-white/40 dark:border-white/10 backdrop-blur-xl bg-surface/70 dark:bg-surface-container/70 shadow-sm flex justify-between items-center px-8 py-3 z-50 transition-all duration-200">
+      <nav className="hidden md:flex fixed top-4 left-1/2 -translate-x-1/2 w-[90%] max-w-container-max rounded-full border border-white/40 dark:border-white/10 backdrop-blur-xl bg-surface/70 dark:bg-surface-container/70 shadow-sm justify-between items-center px-6 lg:px-8 py-3 z-50 transition-all duration-200">
         <Link to="/" className="font-display-lg font-headline-md text-headline-md tracking-tighter text-primary dark:text-primary-fixed">
           Swachchha Nagar
         </Link>

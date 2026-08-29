@@ -77,35 +77,5 @@ CREATE TABLE IF NOT EXISTS report_status_history (
 -- Demo Staff Accounts (.com domain)
 -- ─────────────────────────────────────────────────────────────
 
--- 1. System Admin (Password: Admin@1234)
-INSERT INTO staff_users (id, name, email, password_hash, role, ward)
-VALUES (
-  1,
-  'System Admin',
-  'admin@swachhanagar.com',
-  '$2a$10$QmtprOaHpoLE.zUwnNpHk.eh7oSmqSzpwqD1f.KIQf6GfNEz.TLya',
-  'admin',
-  NULL
-) ON DUPLICATE KEY UPDATE email='admin@swachhanagar.com', password_hash='$2a$10$QmtprOaHpoLE.zUwnNpHk.eh7oSmqSzpwqD1f.KIQf6GfNEz.TLya', role='admin';
-
--- 2. Sanitation Worker (Password: Staff@1234)
-INSERT INTO staff_users (id, name, email, password_hash, role, ward)
-VALUES (
-  2,
-  'Sanitation Worker Bahadur',
-  'staff@swachhanagar.com',
-  '$2a$10$ZZOCO5RHXxY2QJ9NA5PaDO9WowxEqPgOyACxRPIUUOEH7Cw.j7oxa',
-  'sanitation_worker',
-  'Ward 12'
-) ON DUPLICATE KEY UPDATE email='staff@swachhanagar.com', password_hash='$2a$10$ZZOCO5RHXxY2QJ9NA5PaDO9WowxEqPgOyACxRPIUUOEH7Cw.j7oxa', role='sanitation_worker', ward='Ward 12';
-
--- 3. Field Officer (Password: Officer@1234)
-INSERT INTO staff_users (id, name, email, password_hash, role, ward)
-VALUES (
-  3,
-  'Field Officer Ram',
-  'officer@swachhanagar.com',
-  '$2a$10$dxrl..ewgGyJFPCtzvN0Fuj0yd2E/QAAzv15sI1f84Z.CsDiYQlY6',
-  'field_officer',
-  'Ward 12'
-) ON DUPLICATE KEY UPDATE email='officer@swachhanagar.com', password_hash='$2a$10$dxrl..ewgGyJFPCtzvN0Fuj0yd2E/QAAzv15sI1f84Z.CsDiYQlY6', role='field_officer', ward='Ward 12';
+-- Do not seed deployable credentials. Create the first administrator through
+-- a deployment-only bootstrap process with a unique, high-entropy password.
